@@ -1,0 +1,74 @@
+lib/
+│
+├── main.dart
+│
+├── screens/
+│   ├── adicionar_deposito.dart
+│   ├── adicionar_investimento.dart
+│   ├── adicionar_provento.dart
+│   ├── analise_screen.dart
+│   ├── backup_screen.dart
+│   ├── dashboard.dart
+│   ├── detalhes_ativo.dart
+│   ├── detalhes_meta_screen.dart
+│   ├── editar_investimento.dart
+│   ├── editar_provento.dart
+│   ├── editar_transacao.dart
+│   ├── grafico_ativo.dart
+│   ├── investimentos_tabs.dart
+│   ├── lancamentos.dart
+│   ├── main_screen.dart
+│   ├── metas_screen.dart
+│   ├── notificacoes_screen.dart
+│   ├── nova_meta_screen.dart
+│   ├── nova_transacao.dart
+│   ├── proventos.dart
+│   ├── renda_fixa_dialog.dart
+│   └── splash_screen.dart
+│
+├── database/
+│   └── db_helper.dart
+│
+├── services/
+│   ├── backup_service_plus.dart
+│   ├── export_service.dart
+│   ├── logger_service.dart
+│   ├── notification_service.dart
+│   ├── performance_service.dart
+│   ├── theme_service.dart
+│   ├── updater_service.dart
+│   └── yahoo_finance_service.dart
+│
+├── constants/
+│   ├── app_animations.dart
+│   ├── app_colors.dart
+│   ├── app_pages.dart
+│   ├── app_routes.dart
+│   ├── app_sizes.dart
+│   ├── app_strings.dart
+│   └── app_text_styles.dart
+│
+├── utils/
+│   ├── currency_formatter.dart
+│   ├── date_formatter.dart
+│   ├── extract_proventos.dart
+│   ├── fix_database.dart
+│   ├── fix_database_final.dart
+│   ├── mask_formatters.dart
+│   └── validators.dart
+│
+├── widgets/
+│   ├── animated_counter.dart
+│   ├── date_picker_field.dart
+│   ├── empty_state.dart
+│   ├── glassmorphism.dart
+│   ├── gradient_button.dart
+│   ├── gradient_card.dart
+│   ├── info_row.dart
+│   ├── loading_indicator.dart
+│   ├── modern_card.dart
+│   ├── primary_card.dart
+│   └── skeleton_loader.dart
+│
+└── models/
+    └── notification_model.dart
