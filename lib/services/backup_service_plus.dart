@@ -123,7 +123,7 @@ class BackupServicePlus {
     }
   }
 
-  // ========== SALVAR BACKUP EM ARQUIVO ==========
+  // ========== SALVAR BACKUP EM ARQUIVO (CORRIGIDO COM ONEDRIVE!) ==========
   Future<String?> salvarBackupEmArquivo() async {
     try {
       final dados = await exportarTodosDados();
@@ -132,20 +132,26 @@ class BackupServicePlus {
       final agoraBrasilia = DateHelper.agoraBrasilia();
       final timestamp = agoraBrasilia.millisecondsSinceEpoch;
 
-      final directory = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${directory.path}/backups_json');
+      // 🔥 CAMINHO DO ONEDRIVE - AGORA USA A PASTA QUE VOCÊ CRIOU!
+      final userHome = Platform.environment['USERPROFILE'] ?? '';
+      final oneDrivePath = '$userHome\\OneDrive\\BackupsAppFinanceiro';
 
+      // Criar pasta se não existir
+      final backupDir = Directory(oneDrivePath);
       if (!await backupDir.exists()) {
         await backupDir.create(recursive: true);
+        LoggerService.info('📁 Pasta criada: $oneDrivePath');
       }
 
       final fileName = 'backup_$timestamp.json';
-      final file = File('${backupDir.path}/$fileName');
+      final file = File('${backupDir.path}\\$fileName');
 
       final jsonString = jsonEncode(dados);
       await file.writeAsString(jsonString, encoding: utf8);
 
       LoggerService.success('✅ Backup salvo em: ${file.path}');
+
+      // Retornar o caminho do arquivo
       return file.path;
     } catch (e) {
       LoggerService.error('❌ Erro ao salvar backup', e);
@@ -244,18 +250,28 @@ class BackupServicePlus {
   // ========== LISTAR BACKUPS DISPONÍVEIS ==========
   Future<List<File>> listarBackups() async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${directory.path}/backups_json');
+      // 🔥 TAMBÉM LISTAR DA PASTA DO ONEDRIVE!
+      final userHome = Platform.environment['USERPROFILE'] ?? '';
+      final oneDrivePath = '$userHome\\OneDrive\\BackupsAppFinanceiro';
+      final backupDir = Directory(oneDrivePath);
 
       if (!await backupDir.exists()) {
         return [];
       }
 
       final files = backupDir.listSync().whereType<File>().toList();
-      files.sort(
+
+      // Filtrar só arquivos .json de backup
+      final backupFiles = files
+          .where((file) =>
+              file.path.endsWith('.json') && file.path.contains('backup_'))
+          .toList();
+
+      // Ordenar do mais novo para o mais velho
+      backupFiles.sort(
           (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
 
-      return files;
+      return backupFiles;
     } catch (e) {
       LoggerService.error('❌ Erro ao listar backups', e);
       return [];
