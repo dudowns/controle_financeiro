@@ -14,7 +14,8 @@ class RendaFixaDialog extends StatefulWidget {
 class _RendaFixaDialogState extends State<RendaFixaDialog> {
   final DBHelper db = DBHelper();
   final TextEditingController _nomeController = TextEditingController();
-  final TextEditingController _valorController = TextEditingController();
+  final TextEditingController _valorController =
+      TextEditingController(); // 🔥 NOVO!
   final TextEditingController _taxaController = TextEditingController();
 
   DateTime _dataAplicacao = DateTime.now();
@@ -58,27 +59,34 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
 
   void _calcularSimulacao() {
     try {
+      // 🔥 AGORA USA O VALOR DIGITADO!
+      if (_valorController.text.isEmpty) return;
+
       double valor = double.parse(_valorController.text.replaceAll(',', '.'));
-      double taxa = double.parse(_taxaController.text.replaceAll(',', '.'));
-      int dias = _dataVencimento.difference(_dataAplicacao).inDays;
 
-      bool isLCI = _tipoRenda == 'LCI' || _tipoRenda == 'LCA';
+      // Se tem % CDI, usa isso
+      if (_taxaController.text.isNotEmpty && _indexador == 'Pós-fixado') {
+        double taxa = double.parse(_taxaController.text.replaceAll(',', '.'));
+        int dias = _dataVencimento.difference(_dataAplicacao).inDays;
 
-      final resultado = db.simularRendaFixa(
-        valor: valor,
-        taxa: taxa,
-        dias: dias,
-        tipo: _tipoRenda,
-        isLCI: isLCI,
-      );
+        bool isLCI = _tipoRenda == 'LCI' || _tipoRenda == 'LCA';
 
-      setState(() {
-        _rendimentoBruto = resultado['rendimentoBruto']!;
-        _iof = resultado['iof']!;
-        _ir = resultado['ir']!;
-        _rendimentoLiquido = resultado['rendimentoLiquido']!;
-        _valorFinal = resultado['valorFinal']!;
-      });
+        final resultado = db.simularRendaFixa(
+          valor: valor,
+          taxa: taxa,
+          dias: dias,
+          tipo: _tipoRenda,
+          isLCI: isLCI,
+        );
+
+        setState(() {
+          _rendimentoBruto = resultado['rendimentoBruto']!;
+          _iof = resultado['iof']!;
+          _ir = resultado['ir']!;
+          _rendimentoLiquido = resultado['rendimentoLiquido']!;
+          _valorFinal = resultado['valorFinal']!;
+        });
+      }
     } catch (e) {
       // Silencia erro
     }
@@ -92,6 +100,7 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Nome do investimento
             TextField(
               controller: _nomeController,
               decoration: const InputDecoration(
@@ -101,7 +110,8 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
               ),
             ),
             const SizedBox(height: 12),
-            
+
+            // Tipo de Renda Fixa
             DropdownButtonFormField<String>(
               value: _tipoRenda,
               decoration: const InputDecoration(
@@ -123,7 +133,8 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
               },
             ),
             const SizedBox(height: 12),
-            
+
+            // Indexador (se aplicável)
             if (_tipoRenda == 'CDB' || _tipoRenda == 'Tesouro IPCA+') ...[
               DropdownButtonFormField<String>(
                 value: _indexador,
@@ -145,9 +156,25 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
               ),
               const SizedBox(height: 12),
             ],
-            
+
+            // 🔥 NOVO: CAMPO DE VALOR!
             TextField(
               controller: _valorController,
+              decoration: const InputDecoration(
+                labelText: 'Valor Aplicado (R\$)',
+                hintText: 'Ex: 1000,00',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.attach_money),
+                prefixText: 'R\$ ',
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (_) => _calcularSimulacao(),
+            ),
+            const SizedBox(height: 12),
+
+            // Percentual do CDI
+            TextField(
+              controller: _taxaController,
               decoration: const InputDecoration(
                 labelText: 'Percentual do CDI (%)',
                 hintText: 'Ex: 103 para 103% do CDI',
@@ -158,19 +185,8 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
               onChanged: (_) => _calcularSimulacao(),
             ),
             const SizedBox(height: 12),
-            
-            TextField(
-              controller: _taxaController,
-              decoration: const InputDecoration(
-                labelText: 'Taxa (%)',
-                suffixText: '%',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => _calcularSimulacao(),
-            ),
-            const SizedBox(height: 12),
-            
+
+            // Liquidez
             DropdownButtonFormField<String>(
               value: _liquidezSelecionada,
               decoration: const InputDecoration(
@@ -190,7 +206,8 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
               },
             ),
             const SizedBox(height: 12),
-            
+
+            // Datas
             Row(
               children: [
                 Expanded(
@@ -212,9 +229,10 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
+            // Resultado da simulação
             if (_rendimentoLiquido > 0) ...[
               const Divider(),
               Container(
@@ -225,12 +243,16 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
                 ),
                 child: Column(
                   children: [
-                    _buildDetalhe('Rendimento Bruto', _rendimentoBruto, Colors.black87),
+                    _buildDetalhe(
+                        'Rendimento Bruto', _rendimentoBruto, Colors.black87),
                     if (_iof > 0) _buildDetalhe('IOF', -_iof, Colors.red),
                     if (_ir > 0) _buildDetalhe('IR', -_ir, Colors.red),
                     const Divider(height: 16),
-                    _buildDetalhe('Rendimento Líquido', _rendimentoLiquido, Colors.green, isTotal: true),
-                    _buildDetalhe('Valor Final', _valorFinal, Colors.teal, isTotal: true),
+                    _buildDetalhe(
+                        'Rendimento Líquido', _rendimentoLiquido, Colors.green,
+                        isTotal: true),
+                    _buildDetalhe('Valor Final', _valorFinal, Colors.teal,
+                        isTotal: true),
                   ],
                 ),
               ),
@@ -245,21 +267,26 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            if (_nomeController.text.isEmpty ||
-                _valorController.text.isEmpty ||
-                _taxaController.text.isEmpty) {
+            // Validação básica
+            if (_nomeController.text.isEmpty || _valorController.text.isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Preencha todos os campos!'),
+                  content: Text('Preencha o nome e o valor!'),
                   backgroundColor: Colors.red,
                 ),
               );
               return;
             }
 
-            double valor = double.parse(_valorController.text.replaceAll(',', '.'));
-            double taxa = double.parse(_taxaController.text.replaceAll(',', '.'));
+            double valor =
+                double.parse(_valorController.text.replaceAll(',', '.'));
             int dias = _dataVencimento.difference(_dataAplicacao).inDays;
+
+            // Se não preencheu taxa, usa 100% como padrão
+            double taxa = 100;
+            if (_taxaController.text.isNotEmpty) {
+              taxa = double.parse(_taxaController.text.replaceAll(',', '.'));
+            }
 
             widget.onSalvar({
               'nome': _nomeController.text,
@@ -289,7 +316,8 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
     );
   }
 
-  Widget _buildDataField(String label, DateTime date, Function(DateTime) onSelect) {
+  Widget _buildDataField(
+      String label, DateTime date, Function(DateTime) onSelect) {
     return InkWell(
       onTap: () async {
         final newDate = await showDatePicker(
@@ -314,20 +342,23 @@ class _RendaFixaDialogState extends State<RendaFixaDialog> {
               DateFormat('dd/MM/yy').format(date),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+            Text(label,
+                style: TextStyle(fontSize: 10, color: Colors.grey[600])),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDetalhe(String label, double valor, Color cor, {bool isTotal = false}) {
+  Widget _buildDetalhe(String label, double valor, Color cor,
+      {bool isTotal = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: isTotal ? 13 : 12, color: cor)),
+          Text(label,
+              style: TextStyle(fontSize: isTotal ? 13 : 12, color: cor)),
           Text(
             _formatarValor(valor),
             style: TextStyle(
