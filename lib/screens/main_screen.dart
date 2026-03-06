@@ -4,8 +4,9 @@ import 'dashboard.dart';
 import 'lancamentos.dart';
 import 'investimentos_tabs.dart';
 import 'metas_screen.dart';
-import 'backup_screen.dart'; // 🔥 IMPORT DA TELA DE BACKUP
-import 'notificacoes_screen.dart'; // 🔥 IMPORT DA TELA DE NOTIFICAÇÕES
+import 'contas_fixas_screen.dart'; // 🔥 NOVA IMPORTAÇÃO!
+import 'backup_screen.dart';
+import 'notificacoes_screen.dart';
 import '../constants/app_colors.dart';
 
 class MainScreen extends StatefulWidget {
@@ -18,11 +19,13 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
+  // Lista de telas na ordem do menu inferior
   final List<Widget> _screens = [
-    const DashboardScreen(),
-    LancamentosScreen(),
-    const InvestimentosTabsScreen(),
-    const MetasScreen(),
+    const DashboardScreen(), // Índice 0
+    LancamentosScreen(), // Índice 1
+    const ContasFixasScreen(), // Índice 2 - NOVA ABA!
+    const InvestimentosTabsScreen(), // Índice 3
+    const MetasScreen(), // Índice 4
   ];
 
   @override
@@ -36,7 +39,7 @@ class _MainScreenState extends State<MainScreen> {
         actions: [
           // Botão de Backup
           IconButton(
-            icon: const Icon(Icons.backup), // 🔥 ÍCONE DE BACKUP
+            icon: const Icon(Icons.backup),
             onPressed: () {
               Navigator.push(
                 context,
@@ -47,7 +50,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
           // Botão de Notificações
           IconButton(
-            icon: const Icon(Icons.notifications), // 🔥 ÍCONE DE NOTIFICAÇÃO
+            icon: const Icon(Icons.notifications),
             onPressed: () {
               Navigator.push(
                 context,
@@ -68,15 +71,23 @@ class _MainScreenState extends State<MainScreen> {
             _selectedIndex = index;
           });
         },
-        type: BottomNavigationBarType.fixed,
+        type: BottomNavigationBarType.fixed, // Necessário para 5 itens
         items: const [
           BottomNavigationBarItem(
               icon: Icon(Icons.dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Gastos'),
+          // 🔥 NOVO ITEM - Contas Fixas
+          BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long), label: 'Contas Fixas'),
           BottomNavigationBarItem(
               icon: Icon(Icons.show_chart), label: 'Invest'),
           BottomNavigationBarItem(icon: Icon(Icons.flag), label: 'Metas'),
         ],
+        // Cores do menu inferior
+        selectedItemColor: AppColors.primaryPurple,
+        unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.white,
+        elevation: 8,
       ),
     );
   }
