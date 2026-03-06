@@ -3,6 +3,7 @@
 enum StatusParcela {
   paga,
   aPagar,
+  atrasada, // 🔥 NOVO STATUS!
   futura,
 }
 
