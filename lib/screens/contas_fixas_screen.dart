@@ -23,6 +23,9 @@ class _ContasFixasScreenState extends State<ContasFixasScreen>
   List<ContaFixa> _contas = [];
   bool _carregando = true;
 
+  // Controlador para rastrear qual ExpansionTile está aberto
+  int? _expandedIndex;
+
   late AnimationController _animationController;
 
   @override
@@ -217,6 +220,11 @@ class _ContasFixasScreenState extends State<ContasFixasScreen>
     if (confirmar == true) {
       setState(() {
         _contas.removeAt(index);
+        if (_expandedIndex == index) {
+          _expandedIndex = null;
+        } else if (_expandedIndex != null && _expandedIndex! > index) {
+          _expandedIndex = _expandedIndex! - 1;
+        }
       });
 
       if (mounted) {
@@ -330,452 +338,521 @@ class _ContasFixasScreenState extends State<ContasFixasScreen>
           ),
         ),
       ),
-      body: _carregando
-          ? const Center(child: CircularProgressIndicator())
-          : _contas.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryPurple.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.receipt_long,
-                          size: 64,
-                          color: AppColors.primaryPurple.withOpacity(0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Nenhuma conta fixa',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Toque no + para adicionar',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : FadeTransition(
-                  opacity: _animationController,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _contas.length,
-                    itemBuilder: (context, index) {
-                      final conta = _contas[index];
-                      final progresso =
-                          conta.parcelasPagas / conta.totalParcelas;
-                      final valorParcela =
-                          conta.valorTotal / conta.totalParcelas;
-
-                      return TweenAnimationBuilder(
-                        tween: Tween<double>(begin: 0, end: 1),
-                        duration: Duration(milliseconds: 500 + (index * 100)),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, double value, child) {
-                          return Opacity(
-                            opacity: value,
-                            child: Transform.translate(
-                              offset: Offset(0, 20 * (1 - value)),
-                              child: child,
+      body: SafeArea(
+        child: _carregando
+            ? const Center(child: CircularProgressIndicator())
+            : _contas.isEmpty
+                ? Center(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryPurple.withOpacity(0.1),
+                              shape: BoxShape.circle,
                             ),
-                          );
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ModernCard(
-                            child: Theme(
-                              data: Theme.of(context).copyWith(
-                                dividerColor: Colors.transparent,
-                              ),
-                              child: ExpansionTile(
-                                tilePadding: const EdgeInsets.all(16),
-                                leading: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        AppColors.primaryPurple,
-                                        AppColors.secondaryPurple,
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.primaryPurple
-                                            .withOpacity(0.3),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.shopping_bag,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                                title: Text(
-                                  conta.nome,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.primaryPurple
-                                                .withOpacity(0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            conta.categoria ?? 'Sem categoria',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: AppColors.primaryPurple,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '${conta.parcelasPagas}/${conta.totalParcelas} parcelas',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Stack(
-                                      children: [
-                                        Container(
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[200],
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                          ),
-                                        ),
-                                        AnimatedContainer(
-                                          duration:
-                                              const Duration(milliseconds: 500),
-                                          height: 8,
-                                          width: MediaQuery.of(context)
-                                                  .size
-                                                  .width *
-                                              0.6 *
-                                              progresso,
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: progresso >= 1
-                                                  ? [Colors.green, Colors.green]
-                                                  : [
-                                                      AppColors.primaryPurple,
-                                                      AppColors.secondaryPurple
-                                                    ],
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: progresso >= 1
-                                                    ? Colors.green
-                                                        .withOpacity(0.3)
-                                                    : AppColors.primaryPurple
-                                                        .withOpacity(0.3),
-                                                blurRadius: 4,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryPurple
-                                        .withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      AnimatedCounter(
-                                        value: conta.valorPago,
-                                        formatter: _formatarValor,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                          color: AppColors.primaryPurple,
-                                        ),
-                                      ),
-                                      Text(
-                                        '/ ${_formatarValor(conta.valorTotal)}',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.grey[500],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[50],
-                                      borderRadius: const BorderRadius.only(
-                                        bottomLeft: Radius.circular(16),
-                                        bottomRight: Radius.circular(16),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 16),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.end,
-                                            children: [
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black
-                                                          .withOpacity(0.05),
-                                                      blurRadius: 4,
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                        Icons.edit,
-                                                        size: 18,
-                                                      ),
-                                                      color: AppColors
-                                                          .primaryPurple,
-                                                      onPressed: () =>
-                                                          _editarConta(
-                                                              conta, index),
-                                                    ),
-                                                    Container(
-                                                      width: 1,
-                                                      height: 24,
-                                                      color: Colors.grey[300],
-                                                    ),
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                        Icons.delete,
-                                                        size: 18,
-                                                      ),
-                                                      color: Colors.red,
-                                                      onPressed: () =>
-                                                          _excluirConta(index),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 8),
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                flex: 1,
-                                                child: Container(),
-                                              ),
-                                              Expanded(
-                                                flex: 2,
-                                                child: Text(
-                                                  'Vencimento',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.grey[700],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                              Expanded(
-                                                flex: 2,
-                                                child: Text(
-                                                  'Status',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.grey[700],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                              Expanded(
-                                                flex: 2,
-                                                child: Text(
-                                                  'Valor',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.grey[700],
-                                                    fontSize: 12,
-                                                  ),
-                                                  textAlign: TextAlign.right,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const Divider(height: 1),
-                                        ...conta.parcelas
-                                            .asMap()
-                                            .entries
-                                            .map((entry) {
-                                          final i = entry.key;
-                                          final parcela = entry.value;
-                                          final corStatus =
-                                              _getCorStatus(parcela.status);
+                            child: Icon(
+                              Icons.receipt_long,
+                              size: 64,
+                              color: AppColors.primaryPurple.withOpacity(0.5),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Nenhuma conta fixa',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Toque no + para adicionar',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          SizedBox(
+                              height:
+                                  MediaQuery.of(context).padding.bottom + 100),
+                        ],
+                      ),
+                    ),
+                  )
+                : FadeTransition(
+                    opacity: _animationController,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        top: 16,
+                        bottom: 100,
+                      ),
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _contas.length,
+                      itemBuilder: (context, index) {
+                        final conta = _contas[index];
+                        final progresso =
+                            conta.parcelasPagas / conta.totalParcelas;
+                        final valorParcela =
+                            conta.valorTotal / conta.totalParcelas;
+                        final isExpanded = _expandedIndex == index;
 
-                                          return Container(
-                                            margin: const EdgeInsets.symmetric(
-                                                vertical: 4),
-                                            padding: const EdgeInsets.all(8),
+                        return TweenAnimationBuilder(
+                          tween: Tween<double>(begin: 0, end: 1),
+                          duration: Duration(milliseconds: 500 + (index * 100)),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, double value, child) {
+                            return Opacity(
+                              opacity: value,
+                              child: Transform.translate(
+                                offset: Offset(0, 20 * (1 - value)),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: ModernCard(
+                              child: Column(
+                                children: [
+                                  // Cabeçalho do card (sempre visível)
+                                  InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _expandedIndex =
+                                            isExpanded ? null : index;
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(12),
                                             decoration: BoxDecoration(
-                                              color: parcela.status ==
-                                                      StatusParcela.atrasada
-                                                  ? Colors.red.withOpacity(0.05)
-                                                  : Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color:
-                                                    corStatus.withOpacity(0.3),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  AppColors.primaryPurple,
+                                                  AppColors.secondaryPurple,
+                                                ],
                                               ),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: AppColors.primaryPurple
+                                                      .withOpacity(0.3),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
                                             ),
-                                            child: Row(
+                                            child: const Icon(
+                                              Icons.shopping_bag,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
-                                                Expanded(
-                                                  flex: 1,
-                                                  child: Transform.scale(
-                                                    scale: 1.2,
-                                                    child: Checkbox(
-                                                      value: parcela.status ==
-                                                          StatusParcela.paga,
-                                                      onChanged: (_) =>
-                                                          _toggleParcelaStatus(
-                                                              index, i),
-                                                      activeColor: Colors.green,
-                                                      checkColor: Colors.white,
-                                                      shape:
-                                                          RoundedRectangleBorder(
+                                                Text(
+                                                  conta.nome,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors
+                                                            .primaryPurple
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                      ),
+                                                      child: Text(
+                                                        conta.categoria ??
+                                                            'Sem categoria',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          color: AppColors
+                                                              .primaryPurple,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      '${conta.parcelasPagas}/${conta.totalParcelas} parcelas',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Stack(
+                                                  children: [
+                                                    Container(
+                                                      height: 8,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.grey[200],
                                                         borderRadius:
                                                             BorderRadius
                                                                 .circular(4),
                                                       ),
                                                     ),
+                                                    AnimatedContainer(
+                                                      duration: const Duration(
+                                                          milliseconds: 500),
+                                                      height: 8,
+                                                      width:
+                                                          MediaQuery.of(context)
+                                                                  .size
+                                                                  .width *
+                                                              0.4 *
+                                                              progresso,
+                                                      decoration: BoxDecoration(
+                                                        gradient:
+                                                            LinearGradient(
+                                                          colors: progresso >= 1
+                                                              ? [
+                                                                  Colors.green,
+                                                                  Colors.green
+                                                                ]
+                                                              : [
+                                                                  AppColors
+                                                                      .primaryPurple,
+                                                                  AppColors
+                                                                      .secondaryPurple
+                                                                ],
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(4),
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: progresso >=
+                                                                    1
+                                                                ? Colors.green
+                                                                    .withOpacity(
+                                                                        0.3)
+                                                                : AppColors
+                                                                    .primaryPurple
+                                                                    .withOpacity(
+                                                                        0.3),
+                                                            blurRadius: 4,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primaryPurple
+                                                  .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                AnimatedCounter(
+                                                  value: conta.valorPago,
+                                                  formatter: _formatarValor,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                    color:
+                                                        AppColors.primaryPurple,
                                                   ),
                                                 ),
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    DateFormat('dd/MM/yy')
-                                                        .format(parcela
-                                                            .dataVencimento),
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: parcela
-                                                                  .status ==
-                                                              StatusParcela
-                                                                  .atrasada
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                      color: parcela.status ==
-                                                              StatusParcela
-                                                                  .atrasada
-                                                          ? Colors.red[700]
-                                                          : Colors.grey[800],
-                                                    ),
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: _buildStatusBadge(parcela
-                                                      .status), // ✅ USA a função!
-                                                ),
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    _formatarValor(
-                                                        parcela.valorPago ??
-                                                            valorParcela),
-                                                    textAlign: TextAlign.right,
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: parcela.status ==
-                                                              StatusParcela.paga
-                                                          ? Colors.green
-                                                          : parcela.status ==
-                                                                  StatusParcela
-                                                                      .atrasada
-                                                              ? Colors.red[700]
-                                                              : Colors
-                                                                  .grey[800],
-                                                    ),
+                                                Text(
+                                                  '/ ${_formatarValor(conta.valorTotal)}',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.grey[500],
                                                   ),
                                                 ),
                                               ],
                                             ),
-                                          );
-                                        }).toList(),
-                                      ],
+                                          ),
+                                          Icon(
+                                            isExpanded
+                                                ? Icons.keyboard_arrow_up
+                                                : Icons.keyboard_arrow_down,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
+
+                                  // Conteúdo expandido (só mostra se estiver expandido)
+                                  if (isExpanded)
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[50],
+                                        borderRadius: const BorderRadius.only(
+                                          bottomLeft: Radius.circular(16),
+                                          bottomRight: Radius.circular(16),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 16),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black
+                                                            .withOpacity(0.05),
+                                                        blurRadius: 4,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons.edit,
+                                                            size: 18),
+                                                        color: AppColors
+                                                            .primaryPurple,
+                                                        onPressed: () =>
+                                                            _editarConta(
+                                                                conta, index),
+                                                      ),
+                                                      Container(
+                                                        width: 1,
+                                                        height: 24,
+                                                        color: Colors.grey[300],
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons.delete,
+                                                            size: 18),
+                                                        color: Colors.red,
+                                                        onPressed: () =>
+                                                            _excluirConta(
+                                                                index),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Cabeçalho da tabela
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 8),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                    flex: 1,
+                                                    child: Container()),
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    'Vencimento',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.grey[700],
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    'Status',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.grey[700],
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    'Valor',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.grey[700],
+                                                      fontSize: 12,
+                                                    ),
+                                                    textAlign: TextAlign.right,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Divider(height: 1),
+                                          ...conta.parcelas
+                                              .asMap()
+                                              .entries
+                                              .map((entry) {
+                                            final i = entry.key;
+                                            final parcela = entry.value;
+                                            final corStatus =
+                                                _getCorStatus(parcela.status);
+
+                                            return Container(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 4),
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: parcela.status ==
+                                                        StatusParcela.atrasada
+                                                    ? Colors.red
+                                                        .withOpacity(0.05)
+                                                    : Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                    color: corStatus
+                                                        .withOpacity(0.3)),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    flex: 1,
+                                                    child: Transform.scale(
+                                                      scale: 1.2,
+                                                      child: Checkbox(
+                                                        value: parcela.status ==
+                                                            StatusParcela.paga,
+                                                        onChanged: (_) =>
+                                                            _toggleParcelaStatus(
+                                                                index, i),
+                                                        activeColor:
+                                                            Colors.green,
+                                                        checkColor:
+                                                            Colors.white,
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(4),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                      DateFormat('dd/MM/yy')
+                                                          .format(parcela
+                                                              .dataVencimento),
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: parcela
+                                                                    .status ==
+                                                                StatusParcela
+                                                                    .atrasada
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                        color: parcela.status ==
+                                                                StatusParcela
+                                                                    .atrasada
+                                                            ? Colors.red[700]
+                                                            : Colors.grey[800],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: _buildStatusBadge(
+                                                        parcela.status),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                      _formatarValor(
+                                                          parcela.valorPago ??
+                                                              valorParcela),
+                                                      textAlign:
+                                                          TextAlign.right,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: parcela.status ==
+                                                                StatusParcela
+                                                                    .paga
+                                                            ? Colors.green
+                                                            : parcela.status ==
+                                                                    StatusParcela
+                                                                        .atrasada
+                                                                ? Colors
+                                                                    .red[700]
+                                                                : Colors
+                                                                    .grey[800],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ],
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primaryPurple,
         icon: const Icon(Icons.add, color: Colors.white),
