@@ -8,7 +8,7 @@ void main() async {
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
 
-  final dbPath =
+  const dbPath =
       'C:\\Users\\anaep\\AppData\\Roaming\\com.example\\controle_financeiro_app\\financeiro.db';
   final db = await databaseFactory.openDatabase(dbPath);
 

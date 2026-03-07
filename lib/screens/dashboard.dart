@@ -712,7 +712,7 @@ class DashboardScreenState extends State<DashboardScreen>
               AnimatedCounter(
                 value: _dados?.totalMovimentado ?? 0,
                 formatter: CurrencyFormatter.format,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryPurple,
@@ -730,7 +730,7 @@ class DashboardScreenState extends State<DashboardScreen>
                 ),
                 child: Text(
                   'R: ${((_dados?.receitas ?? 0) / (_dados?.totalMovimentado ?? 1) * 100).toStringAsFixed(0)}% | D: ${((_dados?.despesas ?? 0) / (_dados?.totalMovimentado ?? 1) * 100).toStringAsFixed(0)}%',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
                     color: AppColors.primaryPurple,
                   ),
@@ -745,9 +745,9 @@ class DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildGraficoCategorias() {
     if (_dados == null || !_dados!.temGastos) {
-      return ModernCard(
+      return const ModernCard(
         height: 250,
-        child: const Center(
+        child: Center(
           child: Text(
             'Nenhum gasto\nno período',
             textAlign: TextAlign.center,
@@ -812,7 +812,7 @@ class DashboardScreenState extends State<DashboardScreen>
               AnimatedCounter(
                 value: _dados!.despesas,
                 formatter: CurrencyFormatter.format,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryPurple,
@@ -858,7 +858,7 @@ class DashboardScreenState extends State<DashboardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Taxa de economia',
                 style: AppTextStyles.body2,
               ),
@@ -915,7 +915,7 @@ class DashboardScreenState extends State<DashboardScreen>
               ),
               child: Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.primaryPurple,
                 ),

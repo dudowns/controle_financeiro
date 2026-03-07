@@ -288,12 +288,12 @@ class _MetasScreenState extends State<MetasScreen>
                         color: AppColors.profitGreen.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(AppSizes.radiusM),
                       ),
-                      child: Row(
+                      child: const Row(
                         children: [
                           Icon(Icons.check_circle,
                               color: AppColors.profitGreen,
                               size: AppSizes.iconXS),
-                          const SizedBox(width: AppSizes.paddingXS),
+                          SizedBox(width: AppSizes.paddingXS),
                           Text(
                             'Concluída',
                             style: TextStyle(
@@ -316,7 +316,7 @@ class _MetasScreenState extends State<MetasScreen>
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Atual',
                         style: AppTextStyles.caption,
                       ),
@@ -334,7 +334,7 @@ class _MetasScreenState extends State<MetasScreen>
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
+                      const Text(
                         'Meta',
                         style: AppTextStyles.caption,
                       ),

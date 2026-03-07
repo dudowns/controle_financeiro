@@ -50,7 +50,7 @@ class _ProventosScreenState extends State<ProventosScreen>
   List<String> meses = [];
 
   // 🔥 CORES COM CONTRASTE - APENAS A USADA!
-  static final Color _profitText = const Color(0xFF4CAF50);
+  static const Color _profitText = Color(0xFF4CAF50);
 
   @override
   bool get wantKeepAlive => true;
@@ -375,7 +375,7 @@ class _ProventosScreenState extends State<ProventosScreen>
     final maxValor = dadosGrafico
         .map((e) => e['valor'] as double)
         .reduce((a, b) => a > b ? a : b);
-    final double alturaMaxima = 120.0;
+    const double alturaMaxima = 120.0;
 
     return Container(
       width: double.infinity,

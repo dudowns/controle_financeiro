@@ -149,7 +149,7 @@ class _AdicionarInvestimentoScreenState
 
             // Tipo
             DropdownButtonFormField<String>(
-              value: _tipoSelecionado,
+              initialValue: _tipoSelecionado,
               decoration: InputDecoration(
                 labelText: 'Tipo de Ativo',
                 border: OutlineInputBorder(

@@ -113,7 +113,7 @@ class _EditarProventoScreenState extends State<EditarProventoScreen> {
 
             // Tipo de Provento
             DropdownButtonFormField<String>(
-              value: _tipoProvento,
+              initialValue: _tipoProvento,
               decoration: InputDecoration(
                 labelText: 'Tipo de Provento',
                 border: OutlineInputBorder(

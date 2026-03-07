@@ -626,9 +626,9 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
                                     ),
                                     child: Text(
                                       deposito['observacao'],
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 11,
-                                        color: const Color(0xFF6A1B9A),
+                                        color: Color(0xFF6A1B9A),
                                       ),
                                     ),
                                   ),

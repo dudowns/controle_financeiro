@@ -26,9 +26,9 @@ class NeumorphicButton extends StatelessWidget {
                   offset: const Offset(2, 2),
                   blurRadius: 4,
                 ),
-                BoxShadow(
+                const BoxShadow(
                   color: Colors.white,
-                  offset: const Offset(-2, -2),
+                  offset: Offset(-2, -2),
                   blurRadius: 4,
                 ),
               ]
@@ -38,9 +38,9 @@ class NeumorphicButton extends StatelessWidget {
                   offset: const Offset(4, 4),
                   blurRadius: 8,
                 ),
-                BoxShadow(
+                const BoxShadow(
                   color: Colors.white,
-                  offset: const Offset(-4, -4),
+                  offset: Offset(-4, -4),
                   blurRadius: 8,
                 ),
               ],

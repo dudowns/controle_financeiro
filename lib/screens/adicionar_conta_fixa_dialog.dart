@@ -17,19 +17,19 @@ class AdicionarContaFixaDialog extends StatefulWidget {
 class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nomeController = TextEditingController();
-  final _valorController = TextEditingController();
+  final _valorParcelaController = TextEditingController(); // 🔥 MUDOU!
   final _categoriaController = TextEditingController();
 
   late DateTime _dataInicio;
   late int _totalParcelas;
-  late double _valorParcelaCalculado;
+  late double _valorTotalCalculado;
 
   @override
   void initState() {
     super.initState();
     _dataInicio = DateTime.now();
     _totalParcelas = 1;
-    _valorParcelaCalculado = 0;
+    _valorTotalCalculado = 0;
   }
 
   double _parseValor(String texto) {
@@ -40,12 +40,12 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
     }
   }
 
-  void _atualizarValorParcela() {
-    final valorTotal = _parseValor(_valorController.text);
+  void _atualizarValorTotal() {
+    final valorParcela = _parseValor(_valorParcelaController.text);
     if (_totalParcelas > 0) {
       setState(() {
-        _valorParcelaCalculado =
-            valorTotal > 0 ? valorTotal / _totalParcelas : 0;
+        _valorTotalCalculado =
+            valorParcela > 0 ? valorParcela * _totalParcelas : 0;
       });
     }
   }
@@ -54,36 +54,40 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Nova Conta Fixa'),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Nome
+              // Nome da Conta
               TextFormField(
                 controller: _nomeController,
                 decoration: const InputDecoration(
                   labelText: 'Nome da Conta',
                   hintText: 'Ex: Celular Samsung',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.shopping_bag),
                 ),
                 validator: (v) =>
                     v?.isEmpty ?? true ? 'Campo obrigatório' : null,
               ),
               const SizedBox(height: 12),
 
-              // Valor total
+              // 🔥 AGORA O VALOR POR PARCELA É EDITÁVEL!
               TextFormField(
-                controller: _valorController,
+                controller: _valorParcelaController,
                 decoration: const InputDecoration(
-                  labelText: 'Valor Total (R\$)',
-                  hintText: '4.000,00',
+                  labelText: 'Valor por Parcela (R\$)',
+                  hintText: '500,00',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.attach_money),
+                  prefixIcon: Icon(Icons.money),
                 ),
                 keyboardType: TextInputType.number,
-                onChanged: (_) => _atualizarValorParcela(),
+                onChanged: (_) => _atualizarValorTotal(),
                 validator: (v) {
                   if (v?.isEmpty ?? true) return 'Campo obrigatório';
                   if (_parseValor(v!) <= 0)
@@ -93,7 +97,7 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
               ),
               const SizedBox(height: 12),
 
-              // Total de parcelas
+              // Total de Parcelas
               Row(
                 children: [
                   Expanded(
@@ -102,12 +106,13 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Total de Parcelas',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.numbers),
                       ),
                       keyboardType: TextInputType.number,
                       onChanged: (v) {
                         setState(() {
                           _totalParcelas = int.tryParse(v) ?? 1;
-                          _atualizarValorParcela();
+                          _atualizarValorTotal();
                         });
                       },
                       validator: (v) {
@@ -123,11 +128,12 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
                     child: TextFormField(
                       enabled: false,
                       decoration: InputDecoration(
-                        labelText: 'Valor Parcela',
+                        labelText: 'Valor Total',
                         border: const OutlineInputBorder(),
-                        hintText: _valorParcelaCalculado > 0
-                            ? CurrencyFormatter.format(_valorParcelaCalculado)
+                        hintText: _valorTotalCalculado > 0
+                            ? CurrencyFormatter.format(_valorTotalCalculado)
                             : 'R\$ 0,00',
+                        prefixIcon: const Icon(Icons.attach_money),
                       ),
                     ),
                   ),
@@ -142,11 +148,12 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
                   labelText: 'Categoria (opcional)',
                   hintText: 'Ex: Eletrônicos',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category),
                 ),
               ),
               const SizedBox(height: 12),
 
-              // Data de início
+              // Data de Início
               InkWell(
                 onTap: () async {
                   final date = await showDatePicker(
@@ -170,7 +177,8 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today, size: 16),
+                      const Icon(Icons.calendar_today,
+                          size: 16, color: Color(0xFF6A1B9A)),
                       const SizedBox(width: 8),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,7 +189,10 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
                           ),
                           Text(
                             DateFormat('dd/MM/yyyy').format(_dataInicio),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF6A1B9A),
+                            ),
                           ),
                         ],
                       ),
@@ -196,19 +207,18 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          child: const Text(
+            'Cancelar',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
         ElevatedButton(
           onPressed: () {
             if (_formKey.currentState!.validate()) {
-              final valorTotal = _parseValor(_valorController.text);
+              final valorParcela = _parseValor(_valorParcelaController.text);
 
               if (_totalParcelas > 0) {
-                // 🔥 AGORA A VARIÁVEL É USADA!
-                final valorParcela = valorTotal / _totalParcelas;
-
-                // Usando a variável para mostrar no console (só pra não dar warning)
-                debugPrint('📊 Valor da parcela: $valorParcela');
+                final valorTotal = valorParcela * _totalParcelas;
 
                 // Gerar parcelas
                 final parcelas = List.generate(_totalParcelas, (i) {
@@ -217,11 +227,25 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
                     _dataInicio.month + i,
                     _dataInicio.day,
                   );
+
+                  // Status inicial baseado na data
+                  StatusParcela status;
+                  final hoje = DateTime.now();
+
+                  if (dataVenc.isBefore(hoje)) {
+                    status = StatusParcela.atrasada;
+                  } else if (dataVenc.year == hoje.year &&
+                      dataVenc.month == hoje.month) {
+                    status = StatusParcela.aPagar;
+                  } else {
+                    status = StatusParcela.futura;
+                  }
+
                   return Parcela(
                     numero: i + 1,
                     dataVencimento: dataVenc,
-                    status:
-                        i == 0 ? StatusParcela.aPagar : StatusParcela.futura,
+                    status: status,
+                    valorPago: null, // Começa sem valor pago
                   );
                 });
 
@@ -243,6 +267,10 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF6A1B9A),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           child: const Text('Adicionar'),
         ),
@@ -253,7 +281,7 @@ class _AdicionarContaFixaDialogState extends State<AdicionarContaFixaDialog> {
   @override
   void dispose() {
     _nomeController.dispose();
-    _valorController.dispose();
+    _valorParcelaController.dispose();
     _categoriaController.dispose();
     super.dispose();
   }

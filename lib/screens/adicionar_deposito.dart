@@ -96,10 +96,10 @@ class _AdicionarDepositoScreenState extends State<AdicionarDepositoScreen> {
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('🎉 Parabéns! Meta alcançada!'),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              duration: Duration(seconds: 3),
             ),
           );
         }

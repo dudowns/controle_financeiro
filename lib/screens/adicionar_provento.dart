@@ -93,7 +93,7 @@ class _AdicionarProventoScreenState extends State<AdicionarProventoScreen> {
 
             // Tipo de Provento
             DropdownButtonFormField<String>(
-              value: _tipoProvento,
+              initialValue: _tipoProvento,
               decoration: InputDecoration(
                 labelText: 'Tipo de Provento',
                 border: OutlineInputBorder(
