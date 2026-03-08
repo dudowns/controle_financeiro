@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import '../services/performance_service.dart';
 import '../utils/date_helper.dart';
+import '../models/conta_fixa_model.dart';
 
 // ========== CLASSE DE CACHE ==========
 class CacheEntry {
@@ -47,7 +48,6 @@ class DBHelper {
   static const String tabelaInvestimentos = 'investimentos';
   static const String tabelaProventos = 'proventos';
   static const String tabelaRendaFixa = 'renda_fixa';
-  // 🔥 NOVAS TABELAS PARA CONTAS FIXAS
   static const String tabelaContasFixas = 'contas_fixas';
   static const String tabelaParcelas = 'parcelas';
 
@@ -69,7 +69,7 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 20, // 🔥 VERSÃO 20 - Adiciona tabelas de contas fixas
+      version: 21, // 🔥 VERSÃO 21 - Adiciona contas fixas
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -163,7 +163,7 @@ class DBHelper {
       )
     ''');
 
-    // Tabela de renda fixa (existente)
+    // Tabela de renda fixa
     await db.execute('''
       CREATE TABLE $tabelaRendaFixa(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,7 +188,7 @@ class DBHelper {
       )
     ''');
 
-    // 🔥 NOVA TABELA: Contas Fixas (parceladas)
+    // 🔥 TABELA: Contas Fixas (parceladas)
     await db.execute('''
       CREATE TABLE $tabelaContasFixas(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,7 +203,7 @@ class DBHelper {
       )
     ''');
 
-    // 🔥 NOVA TABELA: Parcelas (vinculadas às contas fixas)
+    // 🔥 TABELA: Parcelas (vinculadas às contas fixas)
     await db.execute('''
       CREATE TABLE $tabelaParcelas(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -224,7 +224,6 @@ class DBHelper {
   }
 
   Future<void> _criarIndices(Database db) async {
-    // Verificar índices existentes antes de criar
     final indicesExistentes =
         await db.rawQuery("SELECT name FROM sqlite_master WHERE type='index'");
 
@@ -232,7 +231,6 @@ class DBHelper {
         indicesExistentes.map((e) => e['name'] as String).toList();
     debugPrint('📊 Índices existentes: $nomesIndices');
 
-    // Índices para lancamentos
     if (!nomesIndices.contains('idx_lancamentos_data')) {
       await db.execute(
           'CREATE INDEX idx_lancamentos_data ON $tabelaLancamentos(data)');
@@ -248,7 +246,6 @@ class DBHelper {
           'CREATE INDEX idx_lancamentos_categoria ON $tabelaLancamentos(categoria)');
     }
 
-    // Índices para metas
     if (!nomesIndices.contains('idx_metas_concluida')) {
       await db.execute(
           'CREATE INDEX idx_metas_concluida ON $tabelaMetas(concluida)');
@@ -259,7 +256,6 @@ class DBHelper {
           .execute('CREATE INDEX idx_metas_data_fim ON $tabelaMetas(data_fim)');
     }
 
-    // Índices para investimentos
     if (!nomesIndices.contains('idx_investimentos_ticker')) {
       await db.execute(
           'CREATE INDEX idx_investimentos_ticker ON $tabelaInvestimentos(ticker)');
@@ -270,7 +266,6 @@ class DBHelper {
           'CREATE INDEX idx_investimentos_tipo ON $tabelaInvestimentos(tipo)');
     }
 
-    // Índices para proventos
     if (!nomesIndices.contains('idx_proventos_data_pagamento')) {
       await db.execute(
           'CREATE INDEX idx_proventos_data_pagamento ON $tabelaProventos(data_pagamento)');
@@ -281,7 +276,6 @@ class DBHelper {
           'CREATE INDEX idx_proventos_ticker ON $tabelaProventos(ticker)');
     }
 
-    // Índices para renda fixa
     if (!nomesIndices.contains('idx_renda_fixa_vencimento')) {
       await db.execute(
           'CREATE INDEX idx_renda_fixa_vencimento ON $tabelaRendaFixa(data_vencimento)');
@@ -292,7 +286,6 @@ class DBHelper {
           'CREATE INDEX idx_renda_fixa_status ON $tabelaRendaFixa(status)');
     }
 
-    // 🔥 NOVOS ÍNDICES PARA CONTAS FIXAS
     if (!nomesIndices.contains('idx_contas_fixas_data_inicio')) {
       await db.execute(
           'CREATE INDEX idx_contas_fixas_data_inicio ON $tabelaContasFixas(data_inicio)');
@@ -375,11 +368,9 @@ class DBHelper {
       await _criarIndices(db);
     }
 
-    // 🔥 NOVAS MIGRAÇÕES PARA VERSÃO 19 (adicionar colunas que faltam na renda_fixa)
     if (oldVersion < 19) {
       debugPrint('🔧 Corrigindo colunas da tabela renda_fixa...');
 
-      // Verificar se as colunas existem e adicionar se necessário
       final tableInfo = await db.rawQuery('PRAGMA table_info(renda_fixa)');
       final colunas = tableInfo.map((c) => c['name'] as String).toList();
 
@@ -399,11 +390,9 @@ class DBHelper {
       }
     }
 
-    // 🔥 NOVA VERSÃO 20 - Adicionar tabelas de contas fixas
     if (oldVersion < 20) {
       debugPrint('📦 Criando tabelas de contas fixas...');
 
-      // Criar tabela de contas fixas
       await db.execute('''
         CREATE TABLE IF NOT EXISTS contas_fixas(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -418,7 +407,6 @@ class DBHelper {
         )
       ''');
 
-      // Criar tabela de parcelas
       await db.execute('''
         CREATE TABLE IF NOT EXISTS parcelas(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -435,6 +423,11 @@ class DBHelper {
       ''');
 
       debugPrint('✅ Tabelas de contas fixas criadas!');
+    }
+
+    if (oldVersion < 21) {
+      debugPrint('📦 Atualizando índices para contas fixas...');
+      await _criarIndices(db);
     }
 
     await _criarIndices(db);
@@ -650,8 +643,76 @@ class DBHelper {
     OrdemLancamento ordem = OrdemLancamento.dataDesc,
     bool useCache = true,
   }) async {
-    // ... implementação existente ...
-    return [];
+    PerformanceService.start('db_lancamentos_paginados');
+
+    final db = await database;
+
+    String where = '1=1';
+    List<dynamic> whereArgs = [];
+
+    if (tipo != null && tipo != 'Todos') {
+      where += ' AND tipo = ?';
+      whereArgs.add(tipo);
+    }
+
+    if (categoria != null && categoria != 'Todas') {
+      where += ' AND categoria = ?';
+      whereArgs.add(categoria);
+    }
+
+    if (dataInicio != null) {
+      where += ' AND date(data) >= date(?)';
+      whereArgs.add(dataInicio.toIso8601String());
+    }
+
+    if (dataFim != null) {
+      where += ' AND date(data) <= date(?)';
+      whereArgs.add(dataFim.toIso8601String());
+    }
+
+    String orderBy;
+    switch (ordem) {
+      case OrdemLancamento.dataDesc:
+        orderBy = 'data DESC, id DESC';
+        break;
+      case OrdemLancamento.dataAsc:
+        orderBy = 'data ASC, id ASC';
+        break;
+      case OrdemLancamento.valorDesc:
+        orderBy = 'valor DESC, data DESC';
+        break;
+      case OrdemLancamento.valorAsc:
+        orderBy = 'valor ASC, data ASC';
+        break;
+    }
+
+    final offset = (pagina - 1) * porPagina;
+
+    final cacheKey =
+        'lancamentos_paginados_${pagina}_${tipo}_${categoria}_${dataInicio}_${dataFim}_${ordem}';
+
+    if (useCache &&
+        _queryCache.containsKey(cacheKey) &&
+        _queryCache[cacheKey]!.isValid) {
+      PerformanceService.stop('db_lancamentos_paginados (cache)');
+      return List<Map<String, dynamic>>.from(_queryCache[cacheKey]!.data);
+    }
+
+    final result = await db.query(
+      tabelaLancamentos,
+      where: where,
+      whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
+      orderBy: orderBy,
+      limit: porPagina,
+      offset: offset,
+    );
+
+    if (useCache) {
+      _queryCache[cacheKey] = CacheEntry(result, DateTime.now());
+    }
+
+    PerformanceService.stop('db_lancamentos_paginados');
+    return result;
   }
 
   Future<Map<String, dynamic>?> getLancamentoById(int id) async {
@@ -698,6 +759,14 @@ class DBHelper {
       return id;
     } catch (e) {
       debugPrint('❌ Erro detalhado ao inserir provento: $e');
+
+      final tableInfo = await db.rawQuery('PRAGMA table_info(proventos)');
+      debugPrint('📊 Colunas na tabela:');
+      for (var col in tableInfo) {
+        debugPrint('   ${col['name']} - ${col['type']}');
+      }
+      debugPrint('📦 Dados enviados: ${provento.keys.join(', ')}');
+
       rethrow;
     }
   }
@@ -1128,24 +1197,37 @@ class DBHelper {
     };
   }
 
-  // ========== 🔥 NOVOS MÉTODOS PARA CONTAS FIXAS ==========
+  // ========== MÉTODOS PARA CONTAS FIXAS ==========
 
-  Future<int> insertContaFixa(
-      Map<String, dynamic> conta, List<Map<String, dynamic>> parcelas) async {
+  Future<int> insertContaFixa(ContaFixa conta) async {
     final db = await database;
 
     return await db.transaction((txn) async {
-      // Inserir a conta
-      conta['created_at'] = _agoraBrasil();
-      conta['updated_at'] = _agoraBrasil();
-      final contaId = await txn.insert(tabelaContasFixas, conta);
+      final contaJson = {
+        'nome': conta.nome,
+        'valor_total': conta.valorTotal,
+        'total_parcelas': conta.totalParcelas,
+        'data_inicio': conta.dataInicio.toIso8601String(),
+        'categoria': conta.categoria,
+        'observacao': conta.observacao,
+        'created_at': _agoraBrasil(),
+        'updated_at': _agoraBrasil(),
+      };
 
-      // Inserir as parcelas vinculadas
-      for (var parcela in parcelas) {
-        parcela['conta_id'] = contaId;
-        parcela['created_at'] = _agoraBrasil();
-        parcela['updated_at'] = _agoraBrasil();
-        await txn.insert(tabelaParcelas, parcela);
+      final contaId = await txn.insert(tabelaContasFixas, contaJson);
+
+      for (var parcela in conta.parcelas) {
+        final parcelaJson = {
+          'conta_id': contaId,
+          'numero': parcela.numero,
+          'data_vencimento': parcela.dataVencimento.toIso8601String(),
+          'status': parcela.status.index,
+          'data_pagamento': parcela.dataPagamento?.toIso8601String(),
+          'valor_pago': parcela.valorPago,
+          'created_at': _agoraBrasil(),
+          'updated_at': _agoraBrasil(),
+        };
+        await txn.insert(tabelaParcelas, parcelaJson);
       }
 
       return contaId;
@@ -1170,39 +1252,73 @@ class DBHelper {
     );
   }
 
-  Future<Map<String, dynamic>?> getContaFixaById(int id) async {
-    final results = await query(
+  Future<Map<String, dynamic>?> getContaFixaCompleta(int id) async {
+    final db = await database;
+
+    final conta = await db.query(
       tabelaContasFixas,
       where: 'id = ?',
       whereArgs: [id],
-      useCache: true,
     );
-    return results.isNotEmpty ? results.first : null;
+
+    if (conta.isEmpty) return null;
+
+    final parcelas = await db.query(
+      tabelaParcelas,
+      where: 'conta_id = ?',
+      whereArgs: [id],
+      orderBy: 'numero ASC',
+    );
+
+    final contaJson = conta.first;
+    contaJson['parcelas'] = parcelas;
+
+    return contaJson;
   }
 
-  Future<int> updateParcelaStatus(int parcelaId, int status,
-      {DateTime? dataPagamento, double? valorPago}) async {
+  Future<int> updateContaFixa(ContaFixa conta) async {
     final db = await database;
 
-    final data = {
-      'status': status,
-      'updated_at': _agoraBrasil(),
-    };
+    return await db.transaction((txn) async {
+      final contaJson = {
+        'nome': conta.nome,
+        'valor_total': conta.valorTotal,
+        'total_parcelas': conta.totalParcelas,
+        'data_inicio': conta.dataInicio.toIso8601String(),
+        'categoria': conta.categoria,
+        'observacao': conta.observacao,
+        'updated_at': _agoraBrasil(),
+      };
 
-    if (dataPagamento != null) {
-      data['data_pagamento'] = dataPagamento.toIso8601String();
-    }
+      await txn.update(
+        tabelaContasFixas,
+        contaJson,
+        where: 'id = ?',
+        whereArgs: [conta.id],
+      );
 
-    if (valorPago != null) {
-      data['valor_pago'] = valorPago;
-    }
+      await txn.delete(
+        tabelaParcelas,
+        where: 'conta_id = ?',
+        whereArgs: [conta.id],
+      );
 
-    return await db.update(
-      tabelaParcelas,
-      data,
-      where: 'id = ?',
-      whereArgs: [parcelaId],
-    );
+      for (var parcela in conta.parcelas) {
+        final parcelaJson = {
+          'conta_id': conta.id,
+          'numero': parcela.numero,
+          'data_vencimento': parcela.dataVencimento.toIso8601String(),
+          'status': parcela.status.index,
+          'data_pagamento': parcela.dataPagamento?.toIso8601String(),
+          'valor_pago': parcela.valorPago,
+          'created_at': _agoraBrasil(),
+          'updated_at': _agoraBrasil(),
+        };
+        await txn.insert(tabelaParcelas, parcelaJson);
+      }
+
+      return conta.id!;
+    });
   }
 
   Future<int> deleteContaFixa(int id) async {
@@ -1221,6 +1337,9 @@ class DBHelper {
     final parcelasAPagar = await db.rawQuery(
         'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 1');
 
+    final parcelasAtrasadas = await db.rawQuery(
+        'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 2');
+
     return {
       'totalContas': totalContas.length,
       'totalParcelas': totalParcelas.length,
@@ -1228,6 +1347,8 @@ class DBHelper {
       'totalPago': parcelasPagas.first['total'] ?? 0,
       'parcelasAPagar': parcelasAPagar.first['count'] ?? 0,
       'totalAPagar': parcelasAPagar.first['total'] ?? 0,
+      'parcelasAtrasadas': parcelasAtrasadas.first['count'] ?? 0,
+      'totalAtrasado': parcelasAtrasadas.first['total'] ?? 0,
     };
   }
 }
