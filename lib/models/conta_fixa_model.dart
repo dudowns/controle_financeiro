@@ -3,53 +3,57 @@
 enum StatusParcela {
   paga,
   aPagar,
-  atrasada, // 🔥 NOVO STATUS!
+  atrasada,
   futura,
 }
 
 class Parcela {
-  final int numero;
-  final DateTime dataVencimento;
+  int numero;
+  DateTime dataVencimento;
   StatusParcela status;
-  DateTime? dataPagamento;
   double? valorPago;
+  DateTime? dataPagamento;
 
   Parcela({
     required this.numero,
     required this.dataVencimento,
-    this.status = StatusParcela.futura,
-    this.dataPagamento,
+    required this.status,
     this.valorPago,
+    this.dataPagamento,
   });
 
-  Map<String, dynamic> toJson() => {
-        'numero': numero,
-        'dataVencimento': dataVencimento.toIso8601String(),
-        'status': status.index,
-        'dataPagamento': dataPagamento?.toIso8601String(),
-        'valorPago': valorPago,
-      };
+  Map<String, dynamic> toMap() {
+    return {
+      'numero': numero,
+      'dataVencimento': dataVencimento.toIso8601String(),
+      'status': status.index,
+      'valorPago': valorPago,
+      'dataPagamento': dataPagamento?.toIso8601String(),
+    };
+  }
 
-  factory Parcela.fromJson(Map<String, dynamic> json) => Parcela(
-        numero: json['numero'],
-        dataVencimento: DateTime.parse(json['dataVencimento']),
-        status: StatusParcela.values[json['status']],
-        dataPagamento: json['dataPagamento'] != null
-            ? DateTime.parse(json['dataPagamento'])
-            : null,
-        valorPago: json['valorPago']?.toDouble(),
-      );
+  factory Parcela.fromMap(Map<String, dynamic> map) {
+    return Parcela(
+      numero: map['numero'],
+      dataVencimento: DateTime.parse(map['dataVencimento']),
+      status: StatusParcela.values[map['status']],
+      valorPago: map['valorPago']?.toDouble(),
+      dataPagamento: map['dataPagamento'] != null
+          ? DateTime.parse(map['dataPagamento'])
+          : null,
+    );
+  }
 }
 
 class ContaFixa {
-  final int? id;
-  final String nome;
-  final double valorTotal;
-  final int totalParcelas;
-  final DateTime dataInicio;
-  final String? categoria;
-  final String? observacao;
-  final List<Parcela> parcelas;
+  int? id;
+  String nome;
+  double valorTotal;
+  int totalParcelas;
+  DateTime dataInicio;
+  String? categoria;
+  String? observacao;
+  List<Parcela> parcelas;
 
   ContaFixa({
     this.id,
@@ -62,35 +66,40 @@ class ContaFixa {
     required this.parcelas,
   });
 
-  int get parcelasPagas =>
-      parcelas.where((p) => p.status == StatusParcela.paga).length;
-  double get valorPago => parcelas
-      .where((p) => p.status == StatusParcela.paga)
-      .fold(0, (sum, p) => sum + (p.valorPago ?? valorParcelas));
+  double get valorPago {
+    return parcelas
+        .where((p) => p.status == StatusParcela.paga)
+        .fold(0.0, (sum, p) => sum + (p.valorPago ?? 0));
+  }
 
-  double get valorParcelas => valorTotal / totalParcelas;
-  double get saldoRestante => valorTotal - valorPago;
+  int get parcelasPagas {
+    return parcelas.where((p) => p.status == StatusParcela.paga).length;
+  }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'nome': nome,
-        'valorTotal': valorTotal,
-        'totalParcelas': totalParcelas,
-        'dataInicio': dataInicio.toIso8601String(),
-        'categoria': categoria,
-        'observacao': observacao,
-        'parcelas': parcelas.map((p) => p.toJson()).toList(),
-      };
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'nome': nome,
+      'valorTotal': valorTotal,
+      'totalParcelas': totalParcelas,
+      'dataInicio': dataInicio.toIso8601String(),
+      'categoria': categoria,
+      'observacao': observacao,
+      'parcelas': parcelas.map((p) => p.toMap()).toList(),
+    };
+  }
 
-  factory ContaFixa.fromJson(Map<String, dynamic> json) => ContaFixa(
-        id: json['id'],
-        nome: json['nome'],
-        valorTotal: json['valorTotal'].toDouble(),
-        totalParcelas: json['totalParcelas'],
-        dataInicio: DateTime.parse(json['dataInicio']),
-        categoria: json['categoria'],
-        observacao: json['observacao'],
-        parcelas:
-            (json['parcelas'] as List).map((p) => Parcela.fromJson(p)).toList(),
-      );
+  factory ContaFixa.fromMap(Map<String, dynamic> map) {
+    return ContaFixa(
+      id: map['id'],
+      nome: map['nome'],
+      valorTotal: map['valorTotal'],
+      totalParcelas: map['totalParcelas'],
+      dataInicio: DateTime.parse(map['dataInicio']),
+      categoria: map['categoria'],
+      observacao: map['observacao'],
+      parcelas:
+          (map['parcelas'] as List).map((p) => Parcela.fromMap(p)).toList(),
+    );
+  }
 }
