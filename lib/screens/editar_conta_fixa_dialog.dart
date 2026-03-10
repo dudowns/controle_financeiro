@@ -20,18 +20,16 @@ class EditarContaFixaDialog extends StatefulWidget {
 class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
   late final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nomeController;
-  late final TextEditingController
-      _valorParcelaController; // 🔹 VALOR DA PARCELA
+  late final TextEditingController _valorParcelaController;
   late final TextEditingController _parcelasController;
   late final TextEditingController _categoriaController;
   late final TextEditingController _observacaoController;
 
   late DateTime _dataInicio;
   late String? _categoriaSelecionada;
+  double _valorTotal = 0;
 
-  double _valorTotal = 0; // 🔹 VALOR TOTAL CALCULADO
-
-  final List<String> _categorias = [
+  final List<String> _categorias = const [
     'Empréstimo',
     'Eletrônicos',
     'Educação',
@@ -43,16 +41,22 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
     'Outros',
   ];
 
+  // 🔹 FUNÇÃO PARA CONVERTER VÍRGULA PARA PONTO
+  String _formatarValorParaDouble(String valor) {
+    return valor.replaceAll(',', '.');
+  }
+
   @override
   void initState() {
     super.initState();
 
-    // Calcular valor da parcela (valor total / parcelas)
     final valorParcela = widget.conta.valorTotal / widget.conta.totalParcelas;
 
     _nomeController = TextEditingController(text: widget.conta.nome);
     _valorParcelaController = TextEditingController(
-      text: valorParcela.toStringAsFixed(2),
+      text: valorParcela
+          .toStringAsFixed(2)
+          .replaceAll('.', ','), // 🔹 MOSTRA COM VÍRGULA
     );
     _parcelasController = TextEditingController(
       text: widget.conta.totalParcelas.toString(),
@@ -67,10 +71,6 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
         ? widget.conta.categoria
         : null;
 
-    if (_categoriaSelecionada == null && widget.conta.categoria != null) {
-      _categoriaController.text = widget.conta.categoria!;
-    }
-
     _calcularValorTotal();
   }
 
@@ -84,15 +84,14 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
     super.dispose();
   }
 
-  // 🔹 CALCULAR VALOR TOTAL
   void _calcularValorTotal() {
-    final valorParcelaText = _valorParcelaController.text;
+    final valorParcelaText =
+        _formatarValorParaDouble(_valorParcelaController.text);
     final parcelasText = _parcelasController.text;
 
     if (valorParcelaText.isNotEmpty && parcelasText.isNotEmpty) {
       final valorParcela = double.tryParse(valorParcelaText) ?? 0;
       final parcelas = int.tryParse(parcelasText) ?? 0;
-
       setState(() {
         _valorTotal = valorParcela * parcelas;
       });
@@ -104,8 +103,15 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
   }
 
   List<Parcela> _gerarParcelas() {
-    final totalParcelas = int.parse(_parcelasController.text);
-    final valorParcela = double.parse(_valorParcelaController.text);
+    final totalParcelas = int.tryParse(_parcelasController.text) ?? 0;
+    final valorParcela = double.tryParse(
+            _formatarValorParaDouble(_valorParcelaController.text)) ??
+        0;
+
+    if (totalParcelas <= 0 || valorParcela <= 0) {
+      return [];
+    }
+
     final List<Parcela> parcelas = [];
 
     for (int i = 0; i < totalParcelas; i++) {
@@ -120,13 +126,11 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
       DateTime? dataPagamento;
 
       if (i < widget.conta.parcelas.length) {
-        // Preservar dados das parcelas existentes
         final parcelaExistente = widget.conta.parcelas[i];
         status = parcelaExistente.status;
         valorPago = parcelaExistente.valorPago;
         dataPagamento = parcelaExistente.dataPagamento;
       } else {
-        // Nova parcela
         if (dataVencimento.isBefore(DateTime.now())) {
           status = StatusParcela.atrasada;
         } else if (dataVencimento.month == DateTime.now().month &&
@@ -134,11 +138,6 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
           status = StatusParcela.aPagar;
         } else {
           status = StatusParcela.futura;
-        }
-
-        if (status == StatusParcela.paga) {
-          valorPago = valorParcela;
-          dataPagamento = DateTime.now();
         }
       }
 
@@ -158,13 +157,25 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
 
   void _salvar() {
     if (_formKey.currentState!.validate()) {
-      final valorParcela = double.parse(_valorParcelaController.text);
-      final totalParcelas = int.parse(_parcelasController.text);
+      final valorParcela = double.tryParse(
+              _formatarValorParaDouble(_valorParcelaController.text)) ??
+          0;
+      final totalParcelas = int.tryParse(_parcelasController.text) ?? 0;
+
+      if (valorParcela <= 0 || totalParcelas <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Valores inválidos'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
       final contaEditada = ContaFixa(
         id: widget.conta.id,
         nome: _nomeController.text,
-        valorTotal: valorParcela * totalParcelas, // 🔹 CALCULA VALOR TOTAL
+        valorTotal: valorParcela * totalParcelas,
         totalParcelas: totalParcelas,
         dataInicio: _dataInicio,
         categoria: _categoriaSelecionada ?? _categoriaController.text,
@@ -266,7 +277,7 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                // 🔹 VALOR DA PARCELA E NÚMERO DE PARCELAS
+                // Valor da parcela e número de parcelas
                 Row(
                   children: [
                     Expanded(
@@ -287,7 +298,8 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
                           if (value == null || value.isEmpty) {
                             return 'Obrigatório';
                           }
-                          if (double.tryParse(value) == null) {
+                          final valorFormatado = value.replaceAll(',', '.');
+                          if (double.tryParse(valorFormatado) == null) {
                             return 'Valor inválido';
                           }
                           return null;
@@ -323,7 +335,7 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
                   ],
                 ),
 
-                // 🔹 MOSTRAR VALOR TOTAL CALCULADO
+                // Mostrar valor total calculado
                 if (_valorTotal > 0) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -396,14 +408,16 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
                         items: [
                           const DropdownMenuItem(
                             value: null,
-                            child: Text('Selecione ou digite'),
+                            child: Text('Selecione'),
                           ),
-                          ..._categorias.map(
-                            (c) => DropdownMenuItem(
-                              value: c,
-                              child: Text(c),
-                            ),
-                          ),
+                          ..._categorias
+                              .map(
+                                (c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(c),
+                                ),
+                              )
+                              .toList(),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -415,23 +429,6 @@ class _EditarContaFixaDialogState extends State<EditarContaFixaDialog> {
                         },
                       ),
                     ),
-                    if (_categoriaSelecionada == null) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _categoriaController,
-                          decoration: InputDecoration(
-                            labelText: 'Nova categoria',
-                            prefixIcon: const Icon(Icons.add),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 16),

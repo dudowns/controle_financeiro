@@ -23,65 +23,11 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
   @override
   void initState() {
     super.initState();
-    _carregarContas();
+    _carregarContasDoBanco();
   }
 
-  void _carregarContas() {
-    // Dados de exemplo
-    setState(() {
-      _contas = [
-        ContaFixa(
-          nome: 'Celular Samsung',
-          valorTotal: 4000,
-          totalParcelas: 8,
-          dataInicio: DateTime(2026, 1, 10),
-          categoria: 'Eletrônicos',
-          parcelas: List.generate(8, (i) {
-            final dataVenc = DateTime(2026, 1 + i, 10);
-            final status = _getStatusInicial(dataVenc);
-            return Parcela(
-              numero: i + 1,
-              dataVencimento: dataVenc,
-              status: status,
-              valorPago: status == StatusParcela.paga ? 500 : null,
-              dataPagamento:
-                  status == StatusParcela.paga ? DateTime.now() : null,
-            );
-          }),
-        ),
-        ContaFixa(
-          nome: 'Curso de Flutter',
-          valorTotal: 1500,
-          totalParcelas: 6,
-          dataInicio: DateTime(2026, 2, 5),
-          categoria: 'Educação',
-          parcelas: List.generate(6, (i) {
-            final dataVenc = DateTime(2026, 2 + i, 5);
-            final status = _getStatusInicial(dataVenc);
-            return Parcela(
-              numero: i + 1,
-              dataVencimento: dataVenc,
-              status: status,
-              valorPago: status == StatusParcela.paga ? 250 : null,
-              dataPagamento:
-                  status == StatusParcela.paga ? DateTime.now() : null,
-            );
-          }),
-        ),
-      ];
-    });
-  }
-
-  StatusParcela _getStatusInicial(DateTime dataVencimento) {
-    final hoje = DateTime.now();
-    if (dataVencimento.isBefore(hoje)) {
-      return StatusParcela.atrasada;
-    } else if (dataVencimento.year == hoje.year &&
-        dataVencimento.month == hoje.month) {
-      return StatusParcela.aPagar;
-    } else {
-      return StatusParcela.futura;
-    }
+  Future<void> _carregarContasDoBanco() async {
+    // Implementar com seu DBHelper
   }
 
   void _salvarConta(ContaFixa conta) {
@@ -145,7 +91,6 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
       final hoje = DateTime.now();
 
       if (parcela.status == StatusParcela.paga) {
-        // Desmarcar como paga
         if (parcela.dataVencimento.isBefore(hoje)) {
           parcela.status = StatusParcela.atrasada;
         } else if (parcela.dataVencimento.year == hoje.year &&
@@ -157,7 +102,6 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
         parcela.valorPago = null;
         parcela.dataPagamento = null;
       } else {
-        // Marcar como paga
         parcela.status = StatusParcela.paga;
         parcela.valorPago =
             _contas[contaIndex].valorTotal / _contas[contaIndex].totalParcelas;
@@ -376,7 +320,6 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                     child: ModernCard(
                       child: Column(
                         children: [
-                          // Cabeçalho do card
                           InkWell(
                             onTap: () {
                               setState(() {
@@ -406,8 +349,10 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                                         ),
                                       ],
                                     ),
-                                    child: const Icon(
-                                      Icons.shopping_bag,
+                                    child: Icon(
+                                      conta.categoria == 'Empréstimo'
+                                          ? Icons.attach_money
+                                          : Icons.shopping_bag,
                                       color: Colors.white,
                                       size: 20,
                                     ),
@@ -457,6 +402,44 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 6,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blue
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.calendar_month,
+                                                    size: 10,
+                                                    color: Colors.blue,
+                                                  ),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    'Parcela: ${_formatarValor(valorParcela)}',
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      color: Colors.blue[700],
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],
@@ -558,8 +541,6 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                               ),
                             ),
                           ),
-
-                          // Conteúdo expandido
                           if (isExpanded)
                             Container(
                               padding: const EdgeInsets.all(16),
@@ -572,6 +553,37 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                               ),
                               child: Column(
                                 children: [
+                                  if (conta.observacao != null) ...[
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryPurple
+                                            .withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 16,
+                                            color: AppColors.primaryPurple,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              conta.observacao!,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[700],
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                  ],
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 16),
                                     child: Row(
@@ -617,7 +629,6 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                                       ],
                                     ),
                                   ),
-                                  // Cabeçalho da tabela
                                   Container(
                                     padding:
                                         const EdgeInsets.symmetric(vertical: 8),
@@ -670,6 +681,8 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                                     final parcela = entry.value;
                                     final corStatus =
                                         _getCorStatus(parcela.status);
+                                    final valorParcelaAtual =
+                                        parcela.valorPago ?? valorParcela;
 
                                     return Container(
                                       margin: const EdgeInsets.symmetric(
@@ -707,20 +720,38 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                                           ),
                                           Expanded(
                                             flex: 2,
-                                            child: Text(
-                                              DateFormat('dd/MM/yy').format(
-                                                  parcela.dataVencimento),
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: parcela.status ==
-                                                        StatusParcela.atrasada
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                                color: parcela.status ==
-                                                        StatusParcela.atrasada
-                                                    ? Colors.red[700]
-                                                    : Colors.grey[800],
-                                              ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  DateFormat('dd/MM/yy').format(
+                                                      parcela.dataVencimento),
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight:
+                                                        parcela.status ==
+                                                                StatusParcela
+                                                                    .atrasada
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                    color: parcela.status ==
+                                                            StatusParcela
+                                                                .atrasada
+                                                        ? Colors.red[700]
+                                                        : Colors.grey[800],
+                                                  ),
+                                                ),
+                                                if (parcela.dataPagamento !=
+                                                    null)
+                                                  Text(
+                                                    'Pago: ${DateFormat('dd/MM/yy').format(parcela.dataPagamento!)}',
+                                                    style: TextStyle(
+                                                      fontSize: 8,
+                                                      color: Colors.green[700],
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           ),
                                           Expanded(
@@ -731,9 +762,7 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
                                           Expanded(
                                             flex: 2,
                                             child: Text(
-                                              _formatarValor(
-                                                  parcela.valorPago ??
-                                                      valorParcela),
+                                              _formatarValor(valorParcelaAtual),
                                               textAlign: TextAlign.right,
                                               style: TextStyle(
                                                 fontSize: 12,
