@@ -1,5 +1,8 @@
+// lib/screens/splash_screen.dart
+
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../utils/date_helper.dart'; // 🔥 NOVO - para usar futuramente se necessário
 import 'main_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -36,9 +39,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Navega para a main screen após 3 segundos
     Future.delayed(const Duration(seconds: 3), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-      );
+      if (mounted) {
+        // 🔥 Verificação de segurança
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+        );
+      }
     });
   }
 

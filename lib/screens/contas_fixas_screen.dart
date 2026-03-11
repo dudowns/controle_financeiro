@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/conta_fixa_model.dart';
 import '../constants/app_colors.dart';
+import '../database/db_helper.dart';
 import '../widgets/animated_counter.dart';
 import '../widgets/modern_card.dart';
 import 'adicionar_conta_fixa_dialog.dart';
@@ -19,6 +20,8 @@ class ContasFixasScreen extends StatefulWidget {
 class _ContasFixasScreenState extends State<ContasFixasScreen> {
   List<ContaFixa> _contas = [];
   int? _expandedIndex;
+  bool _isLoading = true;
+  final DBHelper _dbHelper = DBHelper();
 
   @override
   void initState() {
@@ -27,30 +30,76 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
   }
 
   Future<void> _carregarContasDoBanco() async {
-    // Implementar com seu DBHelper
+    setState(() => _isLoading = true);
+    try {
+      final contasJson = await _dbHelper.getAllContasFixas();
+      List<ContaFixa> contas = [];
+
+      for (var contaJson in contasJson) {
+        // 🔥 CARREGAR TODAS AS PARCELAS DA CONTA
+        final parcelasJson =
+            await _dbHelper.getParcelasByContaId(contaJson['id']);
+
+        debugPrint(
+            '📊 Conta ${contaJson['nome']}: ${parcelasJson.length} parcelas carregadas');
+
+        final parcelas = parcelasJson.map((p) {
+          final status = StatusParcela.values[p['status']];
+          return Parcela(
+            numero: p['numero'],
+            dataVencimento: DateTime.parse(p['data_vencimento']),
+            status: status,
+            valorPago: p['valor_pago']?.toDouble(),
+            dataPagamento: p['data_pagamento'] != null
+                ? DateTime.parse(p['data_pagamento'])
+                : null,
+          );
+        }).toList();
+
+        contas.add(ContaFixa(
+          id: contaJson['id'],
+          nome: contaJson['nome'],
+          valorTotal: contaJson['valor_total'],
+          totalParcelas: contaJson['total_parcelas'],
+          dataInicio: DateTime.parse(contaJson['data_inicio']),
+          categoria: contaJson['categoria'],
+          observacao: contaJson['observacao'],
+          parcelas: parcelas, // 🔥 TODAS AS PARCELAS AQUI!
+        ));
+      }
+
+      setState(() {
+        _contas = contas;
+        _isLoading = false;
+      });
+
+      debugPrint('✅ Total de ${_contas.length} contas carregadas');
+    } catch (e) {
+      setState(() => _isLoading = false);
+      debugPrint('❌ Erro ao carregar contas: $e');
+      _mostrarSnackbar('Erro ao carregar contas', isErro: true);
+    }
   }
 
-  void _salvarConta(ContaFixa conta) {
-    setState(() {
-      _contas.add(conta);
-    });
-
+  void _mostrarSnackbar(String mensagem, {bool isErro = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: const [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Expanded(child: Text('✅ Conta adicionada com sucesso!')),
-          ],
-        ),
-        backgroundColor: Colors.green,
+        content: Text(mensagem),
+        backgroundColor: isErro ? Colors.red : Colors.green,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
       ),
     );
+  }
+
+  void _salvarConta(ContaFixa conta) async {
+    try {
+      final id = await _dbHelper.insertContaFixa(conta);
+      conta.id = id;
+      setState(() => _contas.add(conta));
+      _mostrarSnackbar('✅ Conta adicionada!');
+    } catch (e) {
+      _mostrarSnackbar('Erro ao salvar: $e', isErro: true);
+    }
   }
 
   Future<void> _editarConta(ContaFixa conta, int index) async {
@@ -58,38 +107,23 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
       context: context,
       builder: (_) => EditarContaFixaDialog(conta: conta),
     );
-
     if (result != null) {
-      setState(() {
-        _contas[index] = result;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
-                Expanded(child: Text('✅ Conta atualizada com sucesso!')),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+      try {
+        await _dbHelper.updateContaFixa(result);
+        setState(() => _contas[index] = result);
+        _mostrarSnackbar('✅ Conta atualizada!');
+      } catch (e) {
+        _mostrarSnackbar('Erro ao atualizar: $e', isErro: true);
       }
     }
   }
 
-  void _toggleParcelaStatus(int contaIndex, int parcelaIndex) {
-    setState(() {
-      final parcela = _contas[contaIndex].parcelas[parcelaIndex];
-      final hoje = DateTime.now();
+  Future<void> _toggleParcelaStatus(int contaIndex, int parcelaIndex) async {
+    final conta = _contas[contaIndex];
+    final parcela = conta.parcelas[parcelaIndex];
+    final hoje = DateTime.now();
 
+    setState(() {
       if (parcela.status == StatusParcela.paga) {
         if (parcela.dataVencimento.isBefore(hoje)) {
           parcela.status = StatusParcela.atrasada;
@@ -103,11 +137,16 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
         parcela.dataPagamento = null;
       } else {
         parcela.status = StatusParcela.paga;
-        parcela.valorPago =
-            _contas[contaIndex].valorTotal / _contas[contaIndex].totalParcelas;
-        parcela.dataPagamento = DateTime.now();
+        parcela.valorPago = conta.valorTotal / conta.totalParcelas;
+        parcela.dataPagamento = hoje;
       }
     });
+
+    try {
+      await _dbHelper.updateContaFixa(conta);
+    } catch (e) {
+      _mostrarSnackbar('Erro ao salvar status', isErro: true);
+    }
   }
 
   void _excluirConta(int index) async {
@@ -115,10 +154,7 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Excluir Conta'),
-        content: Text('Deseja realmente excluir "${_contas[index].nome}"?'),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        content: Text('Deseja excluir "${_contas[index].nome}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -126,13 +162,7 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Excluir'),
           ),
         ],
@@ -140,31 +170,13 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
     );
 
     if (confirmar == true) {
-      setState(() {
-        _contas.removeAt(index);
-        if (_expandedIndex == index) {
-          _expandedIndex = null;
-        } else if (_expandedIndex != null && _expandedIndex! > index) {
-          _expandedIndex = _expandedIndex! - 1;
-        }
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.delete, color: Colors.white),
-              SizedBox(width: 12),
-              Expanded(child: Text('🗑️ Conta excluída!')),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      try {
+        await _dbHelper.deleteContaFixa(_contas[index].id!);
+        setState(() => _contas.removeAt(index));
+        _mostrarSnackbar('🗑️ Conta excluída!');
+      } catch (e) {
+        _mostrarSnackbar('Erro ao excluir: $e', isErro: true);
+      }
     }
   }
 
@@ -184,19 +196,6 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
     }
   }
 
-  IconData _getIconeStatus(StatusParcela status) {
-    switch (status) {
-      case StatusParcela.paga:
-        return Icons.check_circle;
-      case StatusParcela.aPagar:
-        return Icons.warning_amber;
-      case StatusParcela.atrasada:
-        return Icons.error;
-      case StatusParcela.futura:
-        return Icons.access_time;
-    }
-  }
-
   String _getTextoStatus(StatusParcela status) {
     switch (status) {
       case StatusParcela.paga:
@@ -212,30 +211,18 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
 
   Widget _buildStatusBadge(StatusParcela status) {
     final cor = _getCorStatus(status);
-    final icone = _getIconeStatus(status);
     final texto = _getTextoStatus(status);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: cor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cor.withOpacity(0.3)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icone, size: 12, color: cor),
-          const SizedBox(width: 4),
-          Text(
-            texto,
-            style: TextStyle(
-              fontSize: 10,
-              color: cor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+      child: Text(
+        texto,
+        style: TextStyle(fontSize: 9, color: cor, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -247,565 +234,375 @@ class _ContasFixasScreenState extends State<ContasFixasScreen> {
         title: const Text('Contas Fixas'),
         backgroundColor: AppColors.primaryPurple,
         foregroundColor: Colors.white,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
       ),
-      body: SafeArea(
-        child: _contas.isEmpty
-            ? Center(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryPurple.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.receipt_long,
-                          size: 64,
-                          color: AppColors.primaryPurple.withOpacity(0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Nenhuma conta fixa',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Toque no + para adicionar',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                      SizedBox(
-                          height: MediaQuery.of(context).padding.bottom + 100),
-                    ],
-                  ),
-                ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 16,
-                  bottom: 100,
-                ),
-                physics: const BouncingScrollPhysics(),
-                itemCount: _contas.length,
-                itemBuilder: (context, index) {
-                  final conta = _contas[index];
-                  final progresso = conta.parcelasPagas / conta.totalParcelas;
-                  final valorParcela = conta.valorTotal / conta.totalParcelas;
-                  final isExpanded = _expandedIndex == index;
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _contas.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: _contas.length,
+                  itemBuilder: (context, index) {
+                    final conta = _contas[index];
+                    final progresso = conta.parcelasPagas / conta.totalParcelas;
+                    final valorParcela = conta.valorTotal / conta.totalParcelas;
+                    final isExpanded = _expandedIndex == index;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ModernCard(
-                      child: Column(
-                        children: [
-                          InkWell(
-                            onTap: () {
-                              setState(() {
-                                _expandedIndex = isExpanded ? null : index;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          AppColors.primaryPurple,
-                                          AppColors.secondaryPurple,
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.primaryPurple
-                                              .withOpacity(0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Icon(
-                                      conta.categoria == 'Empréstimo'
-                                          ? Icons.attach_money
-                                          : Icons.shopping_bag,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          conta.nome,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 4,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primaryPurple
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                conta.categoria ??
-                                                    'Sem categoria',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color:
-                                                      AppColors.primaryPurple,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              '${conta.parcelasPagas}/${conta.totalParcelas}',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 6,
-                                                vertical: 2,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.blue
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    Icons.calendar_month,
-                                                    size: 10,
-                                                    color: Colors.blue,
-                                                  ),
-                                                  const SizedBox(width: 2),
-                                                  Text(
-                                                    'Parcela: ${_formatarValor(valorParcela)}',
-                                                    style: TextStyle(
-                                                      fontSize: 9,
-                                                      color: Colors.blue[700],
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Stack(
-                                          children: [
-                                            Container(
-                                              height: 8,
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[200],
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                            ),
-                                            AnimatedContainer(
-                                              duration: const Duration(
-                                                  milliseconds: 500),
-                                              height: 8,
-                                              width: MediaQuery.of(context)
-                                                      .size
-                                                      .width *
-                                                  0.4 *
-                                                  progresso,
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  colors: progresso >= 1
-                                                      ? [
-                                                          Colors.green,
-                                                          Colors.green
-                                                        ]
-                                                      : [
-                                                          AppColors
-                                                              .primaryPurple,
-                                                          AppColors
-                                                              .secondaryPurple
-                                                        ],
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: progresso >= 1
-                                                        ? Colors.green
-                                                            .withOpacity(0.3)
-                                                        : AppColors
-                                                            .primaryPurple
-                                                            .withOpacity(0.3),
-                                                    blurRadius: 4,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primaryPurple
-                                          .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        AnimatedCounter(
-                                          value: conta.valorPago,
-                                          formatter: _formatarValor,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                            color: AppColors.primaryPurple,
-                                          ),
-                                        ),
-                                        Text(
-                                          '/ ${_formatarValor(conta.valorTotal)}',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey[500],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(
-                                    isExpanded
-                                        ? Icons.keyboard_arrow_up
-                                        : Icons.keyboard_arrow_down,
-                                    color: Colors.grey[600],
-                                  ),
-                                ],
-                              ),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ModernCard(
+                        child: Column(
+                          children: [
+                            _buildCabecalhoCompacto(
+                              conta,
+                              index,
+                              progresso,
+                              valorParcela,
+                              isExpanded,
                             ),
-                          ),
-                          if (isExpanded)
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: const BorderRadius.only(
-                                  bottomLeft: Radius.circular(16),
-                                  bottomRight: Radius.circular(16),
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  if (conta.observacao != null) ...[
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryPurple
-                                            .withOpacity(0.05),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.info_outline,
-                                            size: 16,
-                                            color: AppColors.primaryPurple,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              conta.observacao!,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[700],
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                  ],
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black
-                                                    .withOpacity(0.05),
-                                                blurRadius: 4,
-                                              ),
-                                            ],
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(Icons.edit,
-                                                    size: 18),
-                                                color: AppColors.primaryPurple,
-                                                onPressed: () =>
-                                                    _editarConta(conta, index),
-                                              ),
-                                              Container(
-                                                width: 1,
-                                                height: 24,
-                                                color: Colors.grey[300],
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(Icons.delete,
-                                                    size: 18),
-                                                color: Colors.red,
-                                                onPressed: () =>
-                                                    _excluirConta(index),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                    child: Row(
-                                      children: [
-                                        Expanded(flex: 1, child: Container()),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            'Vencimento',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.grey[700],
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            'Status',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.grey[700],
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            'Valor',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.grey[700],
-                                              fontSize: 12,
-                                            ),
-                                            textAlign: TextAlign.right,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Divider(height: 1),
-                                  ...conta.parcelas
-                                      .asMap()
-                                      .entries
-                                      .map((entry) {
-                                    final i = entry.key;
-                                    final parcela = entry.value;
-                                    final corStatus =
-                                        _getCorStatus(parcela.status);
-                                    final valorParcelaAtual =
-                                        parcela.valorPago ?? valorParcela;
-
-                                    return Container(
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 4),
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: parcela.status ==
-                                                StatusParcela.atrasada
-                                            ? Colors.red.withOpacity(0.05)
-                                            : Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                            color: corStatus.withOpacity(0.3)),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            flex: 1,
-                                            child: Transform.scale(
-                                              scale: 1.2,
-                                              child: Checkbox(
-                                                value: parcela.status ==
-                                                    StatusParcela.paga,
-                                                onChanged: (_) =>
-                                                    _toggleParcelaStatus(
-                                                        index, i),
-                                                activeColor: Colors.green,
-                                                checkColor: Colors.white,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Expanded(
-                                            flex: 2,
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  DateFormat('dd/MM/yy').format(
-                                                      parcela.dataVencimento),
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight:
-                                                        parcela.status ==
-                                                                StatusParcela
-                                                                    .atrasada
-                                                            ? FontWeight.bold
-                                                            : FontWeight.normal,
-                                                    color: parcela.status ==
-                                                            StatusParcela
-                                                                .atrasada
-                                                        ? Colors.red[700]
-                                                        : Colors.grey[800],
-                                                  ),
-                                                ),
-                                                if (parcela.dataPagamento !=
-                                                    null)
-                                                  Text(
-                                                    'Pago: ${DateFormat('dd/MM/yy').format(parcela.dataPagamento!)}',
-                                                    style: TextStyle(
-                                                      fontSize: 8,
-                                                      color: Colors.green[700],
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          Expanded(
-                                            flex: 2,
-                                            child: _buildStatusBadge(
-                                                parcela.status),
-                                          ),
-                                          Expanded(
-                                            flex: 2,
-                                            child: Text(
-                                              _formatarValor(valorParcelaAtual),
-                                              textAlign: TextAlign.right,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: parcela.status ==
-                                                        StatusParcela.paga
-                                                    ? Colors.green
-                                                    : parcela.status ==
-                                                            StatusParcela
-                                                                .atrasada
-                                                        ? Colors.red[700]
-                                                        : Colors.grey[800],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ],
-                              ),
-                            ),
-                        ],
+                            if (isExpanded)
+                              _buildDetalhesCompacto(
+                                  conta, index, valorParcela),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-      ),
+                    );
+                  },
+                ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primaryPurple,
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
+        child: const Icon(Icons.add, color: Colors.white),
+        onPressed: () => showDialog(
+          context: context,
+          builder: (_) => AdicionarContaFixaDialog(onSalvar: _salvarConta),
         ),
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (_) => AdicionarContaFixaDialog(
-              onSalvar: _salvarConta,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          const Text('Nenhuma conta fixa', style: TextStyle(fontSize: 18)),
+          const SizedBox(height: 8),
+          Text(
+            'Toque no + para adicionar',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCabecalhoCompacto(
+    ContaFixa conta,
+    int index,
+    double progresso,
+    double valorParcela,
+    bool isExpanded,
+  ) {
+    return InkWell(
+      onTap: () => setState(() => _expandedIndex = isExpanded ? null : index),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            // Ícone
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                conta.categoria == 'Empréstimo'
+                    ? Icons.attach_money
+                    : Icons.shopping_bag,
+                color: Colors.white,
+                size: 16,
+              ),
             ),
-          );
-        },
+            const SizedBox(width: 10),
+
+            // Informações
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Nome e categoria
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          conta.nome,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryPurple.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          conta.categoria ?? 'Outros',
+                          style: TextStyle(
+                              fontSize: 8, color: AppColors.primaryPurple),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+
+                  // Progresso
+                  Row(
+                    children: [
+                      Text(
+                        '${conta.parcelasPagas}/${conta.totalParcelas}',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: progresso.clamp(0.0, 1.0),
+                            backgroundColor: Colors.grey[200],
+                            color: progresso >= 1
+                                ? Colors.green
+                                : AppColors.primaryPurple,
+                            minHeight: 4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Valores
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primaryPurple.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedCounter(
+                    value: conta.valorPago,
+                    formatter: _formatarValor,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                  Text(
+                    '/ ${_formatarValor(conta.valorTotal)}',
+                    style: TextStyle(fontSize: 8, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            ),
+
+            // Seta
+            Icon(
+              isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              size: 16,
+              color: Colors.grey[500],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetalhesCompacto(
+      ContaFixa conta, int index, double valorParcela) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Botões de ação
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit, size: 16),
+                color: AppColors.primaryPurple,
+                onPressed: () => _editarConta(conta, index),
+                constraints: const BoxConstraints(maxWidth: 32, maxHeight: 32),
+                padding: EdgeInsets.zero,
+                splashRadius: 20,
+                tooltip: 'Editar',
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, size: 16),
+                color: Colors.red,
+                onPressed: () => _excluirConta(index),
+                constraints: const BoxConstraints(maxWidth: 32, maxHeight: 32),
+                padding: EdgeInsets.zero,
+                splashRadius: 20,
+                tooltip: 'Excluir',
+              ),
+            ],
+          ),
+
+          // Cabeçalho da tabela
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Expanded(flex: 1, child: SizedBox()),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Vencimento',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700]),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Status',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700]),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Valor',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700]),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 0.5),
+
+          // 🔥 TODAS AS PARCELAS - MOSTRANDO TODAS AS QUE EXISTEM NO BANCO
+          if (conta.parcelas.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'Nenhuma parcela encontrada',
+                style:
+                    TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+              ),
+            )
+          else
+            ...conta.parcelas.asMap().entries.map((entry) {
+              final i = entry.key;
+              final parcela = entry.value;
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: parcela.status == StatusParcela.atrasada
+                      ? Colors.red.withOpacity(0.05)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    // Checkbox
+                    Expanded(
+                      flex: 1,
+                      child: Transform.scale(
+                        scale: 0.9,
+                        child: Checkbox(
+                          value: parcela.status == StatusParcela.paga,
+                          onChanged: (_) => _toggleParcelaStatus(index, i),
+                          activeColor: Colors.green,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                    // Data
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        DateFormat('dd/MM/yy').format(parcela.dataVencimento),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: parcela.status == StatusParcela.atrasada
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                    // Status
+                    Expanded(
+                      flex: 2,
+                      child: _buildStatusBadge(parcela.status),
+                    ),
+                    // Valor
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        _formatarValor(parcela.valorPago ?? valorParcela),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: parcela.status == StatusParcela.paga
+                              ? Colors.green
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+
+          // 🔥 MOSTRAR TOTAL DE PARCELAS
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Total: ${conta.parcelas.length} parcelas',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

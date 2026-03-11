@@ -1,6 +1,5 @@
 // lib/database/db_helper.dart
 import 'dart:math';
-import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path_provider/path_provider.dart';
@@ -69,7 +68,7 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 21, // 🔥 VERSÃO 21 - Adiciona contas fixas
+      version: 21,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -81,7 +80,7 @@ class DBHelper {
   Future<void> _onCreate(Database db, int version) async {
     debugPrint('🔨 Criando tabelas versão $version');
 
-    // Tabela de lançamentos com timestamps
+    // Tabela de lançamentos
     await db.execute('''
       CREATE TABLE $tabelaLancamentos(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,7 +187,7 @@ class DBHelper {
       )
     ''');
 
-    // 🔥 TABELA: Contas Fixas (parceladas)
+    // Tabela: Contas Fixas
     await db.execute('''
       CREATE TABLE $tabelaContasFixas(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,7 +202,7 @@ class DBHelper {
       )
     ''');
 
-    // 🔥 TABELA: Parcelas (vinculadas às contas fixas)
+    // Tabela: Parcelas
     await db.execute('''
       CREATE TABLE $tabelaParcelas(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -229,7 +228,6 @@ class DBHelper {
 
     final nomesIndices =
         indicesExistentes.map((e) => e['name'] as String).toList();
-    debugPrint('📊 Índices existentes: $nomesIndices');
 
     if (!nomesIndices.contains('idx_lancamentos_data')) {
       await db.execute(
@@ -316,7 +314,6 @@ class DBHelper {
       List<Map<String, dynamic>> proventosExistentes = [];
       try {
         proventosExistentes = await db.query('proventos');
-        debugPrint('📦 Salvando ${proventosExistentes.length} proventos');
       } catch (e) {
         debugPrint('⚠️ Erro ao fazer backup: $e');
       }
@@ -351,8 +348,6 @@ class DBHelper {
     }
 
     if (oldVersion < 18) {
-      debugPrint('🔧 Corrigindo índices duplicados...');
-
       await db.execute('DROP INDEX IF EXISTS idx_lancamentos_data');
       await db.execute('DROP INDEX IF EXISTS idx_lancamentos_tipo');
       await db.execute('DROP INDEX IF EXISTS idx_lancamentos_categoria');
@@ -369,8 +364,6 @@ class DBHelper {
     }
 
     if (oldVersion < 19) {
-      debugPrint('🔧 Corrigindo colunas da tabela renda_fixa...');
-
       final tableInfo = await db.rawQuery('PRAGMA table_info(renda_fixa)');
       final colunas = tableInfo.map((c) => c['name'] as String).toList();
 
@@ -391,8 +384,6 @@ class DBHelper {
     }
 
     if (oldVersion < 20) {
-      debugPrint('📦 Criando tabelas de contas fixas...');
-
       await db.execute('''
         CREATE TABLE IF NOT EXISTS contas_fixas(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -421,19 +412,16 @@ class DBHelper {
           FOREIGN KEY (conta_id) REFERENCES contas_fixas(id) ON DELETE CASCADE
         )
       ''');
-
-      debugPrint('✅ Tabelas de contas fixas criadas!');
     }
 
     if (oldVersion < 21) {
-      debugPrint('📦 Atualizando índices para contas fixas...');
       await _criarIndices(db);
     }
 
     await _criarIndices(db);
   }
 
-  // ========== MÉTODOS GENÉRICOS COM CACHE ==========
+  // ========== MÉTODOS GENÉRICOS ==========
 
   void _clearTableCache(String table) {
     _queryCache.removeWhere((key, _) => key.startsWith('${table}_'));
@@ -525,7 +513,7 @@ class DBHelper {
   }) async {
     PerformanceService.start('db_query_$table');
 
-    final cacheKey = '${table}_${where}_${orderBy}_${limit}_${offset}';
+    final cacheKey = '${table}_${where}_${orderBy}_${limit}_$offset';
 
     if (useCache &&
         _queryCache.containsKey(cacheKey) &&
@@ -552,73 +540,6 @@ class DBHelper {
     return result;
   }
 
-  // ========== MÉTODOS COM TRANSACTIONS ==========
-
-  Future<void> insertLancamentosEmLote(
-      List<Map<String, dynamic>> lancamentos) async {
-    PerformanceService.start('db_batch_insert');
-
-    final db = await database;
-
-    await db.transaction((txn) async {
-      for (var lancamento in lancamentos) {
-        lancamento['created_at'] = _agoraBrasil();
-        lancamento['updated_at'] = _agoraBrasil();
-        await txn.insert(tabelaLancamentos, lancamento);
-      }
-    });
-
-    _clearTableCache(tabelaLancamentos);
-    _clearQueryCache();
-
-    PerformanceService.stop('db_batch_insert');
-  }
-
-  Future<void> updateInvestimentosEmLote(
-      List<Map<String, dynamic>> investimentos) async {
-    PerformanceService.start('db_batch_update');
-
-    final db = await database;
-
-    await db.transaction((txn) async {
-      for (var item in investimentos) {
-        final id = item['id'];
-        item.remove('id');
-        item['updated_at'] = _agoraBrasil();
-        await txn.update(
-          tabelaInvestimentos,
-          item,
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
-    });
-
-    _clearTableCache(tabelaInvestimentos);
-    _clearQueryCache();
-
-    PerformanceService.stop('db_batch_update');
-  }
-
-  Future<void> deleteEmLote(String table, List<int> ids) async {
-    PerformanceService.start('db_batch_delete');
-
-    if (ids.isEmpty) return;
-
-    final db = await database;
-    final placeholders = List.filled(ids.length, '?').join(',');
-
-    await db.execute(
-      'DELETE FROM $table WHERE id IN ($placeholders)',
-      ids,
-    );
-
-    _clearTableCache(table);
-    _clearQueryCache();
-
-    PerformanceService.stop('db_batch_delete');
-  }
-
   // ========== MÉTODOS DE LANÇAMENTOS ==========
 
   Future<int> insertLancamento(Map<String, dynamic> lancamento) async {
@@ -631,88 +552,6 @@ class DBHelper {
       orderBy: 'data DESC, id DESC',
       useCache: true,
     );
-  }
-
-  Future<List<Map<String, dynamic>>> getLancamentosPaginados({
-    required int pagina,
-    int porPagina = 20,
-    String? tipo,
-    String? categoria,
-    DateTime? dataInicio,
-    DateTime? dataFim,
-    OrdemLancamento ordem = OrdemLancamento.dataDesc,
-    bool useCache = true,
-  }) async {
-    PerformanceService.start('db_lancamentos_paginados');
-
-    final db = await database;
-
-    String where = '1=1';
-    List<dynamic> whereArgs = [];
-
-    if (tipo != null && tipo != 'Todos') {
-      where += ' AND tipo = ?';
-      whereArgs.add(tipo);
-    }
-
-    if (categoria != null && categoria != 'Todas') {
-      where += ' AND categoria = ?';
-      whereArgs.add(categoria);
-    }
-
-    if (dataInicio != null) {
-      where += ' AND date(data) >= date(?)';
-      whereArgs.add(dataInicio.toIso8601String());
-    }
-
-    if (dataFim != null) {
-      where += ' AND date(data) <= date(?)';
-      whereArgs.add(dataFim.toIso8601String());
-    }
-
-    String orderBy;
-    switch (ordem) {
-      case OrdemLancamento.dataDesc:
-        orderBy = 'data DESC, id DESC';
-        break;
-      case OrdemLancamento.dataAsc:
-        orderBy = 'data ASC, id ASC';
-        break;
-      case OrdemLancamento.valorDesc:
-        orderBy = 'valor DESC, data DESC';
-        break;
-      case OrdemLancamento.valorAsc:
-        orderBy = 'valor ASC, data ASC';
-        break;
-    }
-
-    final offset = (pagina - 1) * porPagina;
-
-    final cacheKey =
-        'lancamentos_paginados_${pagina}_${tipo}_${categoria}_${dataInicio}_${dataFim}_${ordem}';
-
-    if (useCache &&
-        _queryCache.containsKey(cacheKey) &&
-        _queryCache[cacheKey]!.isValid) {
-      PerformanceService.stop('db_lancamentos_paginados (cache)');
-      return List<Map<String, dynamic>>.from(_queryCache[cacheKey]!.data);
-    }
-
-    final result = await db.query(
-      tabelaLancamentos,
-      where: where,
-      whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
-      orderBy: orderBy,
-      limit: porPagina,
-      offset: offset,
-    );
-
-    if (useCache) {
-      _queryCache[cacheKey] = CacheEntry(result, DateTime.now());
-    }
-
-    PerformanceService.stop('db_lancamentos_paginados');
-    return result;
   }
 
   Future<Map<String, dynamic>?> getLancamentoById(int id) async {
@@ -748,25 +587,14 @@ class DBHelper {
       provento['ticker'] = provento['ticker'].toString().toUpperCase();
     }
 
-    debugPrint('💾 Inserindo provento: $provento');
-
     final db = await database;
     try {
       final id = await db.insert(tabelaProventos, provento);
-      debugPrint('✅ Provento inserido com ID: $id');
 
       _clearTableCache(tabelaProventos);
       return id;
     } catch (e) {
-      debugPrint('❌ Erro detalhado ao inserir provento: $e');
-
-      final tableInfo = await db.rawQuery('PRAGMA table_info(proventos)');
-      debugPrint('📊 Colunas na tabela:');
-      for (var col in tableInfo) {
-        debugPrint('   ${col['name']} - ${col['type']}');
-      }
-      debugPrint('📦 Dados enviados: ${provento.keys.join(', ')}');
-
+      debugPrint('❌ Erro ao inserir provento: $e');
       rethrow;
     }
   }
@@ -808,41 +636,6 @@ class DBHelper {
     return await delete(tabelaProventos, id);
   }
 
-  Future<List<Map<String, dynamic>>> getProventosFuturos() async {
-    final db = await database;
-    return await db.query(
-      tabelaProventos,
-      where: 'data_pagamento > ?',
-      whereArgs: [DateTime.now().toIso8601String()],
-      orderBy: 'data_pagamento ASC',
-    );
-  }
-
-  Future<double> getTotalProventosMes({int? mes, int? ano}) async {
-    PerformanceService.start('db_total_proventos_mes');
-
-    final agora = DateTime.now();
-    final mesAlvo = mes ?? agora.month;
-    final anoAlvo = ano ?? agora.year;
-
-    final primeiroDia = DateTime(anoAlvo, mesAlvo, 1);
-    final ultimoDia = DateTime(anoAlvo, mesAlvo + 1, 0);
-
-    final db = await database;
-    final results = await db.query(
-      tabelaProventos,
-      where: 'date(data_pagamento) BETWEEN date(?) AND date(?)',
-      whereArgs: [primeiroDia.toIso8601String(), ultimoDia.toIso8601String()],
-    );
-
-    PerformanceService.stop('db_total_proventos_mes');
-
-    return results.fold<double>(
-      0,
-      (sum, item) => sum + ((item['total_recebido'] as num?)?.toDouble() ?? 0),
-    );
-  }
-
   // ========== MÉTODOS DE INVESTIMENTOS ==========
 
   Future<int> insertInvestimento(Map<String, dynamic> investimento) async {
@@ -879,26 +672,6 @@ class DBHelper {
     return await delete(tabelaInvestimentos, id);
   }
 
-  Future<int> updatePrecoAtual(int id, double preco) async {
-    PerformanceService.start('db_update_preco');
-
-    final db = await database;
-    final result = await db.update(
-      tabelaInvestimentos,
-      {
-        'preco_atual': preco,
-        'ultima_atualizacao': _agoraBrasil(),
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    _clearTableCache(tabelaInvestimentos);
-
-    PerformanceService.stop('db_update_preco');
-    return result;
-  }
-
   // ========== MÉTODOS DE METAS ==========
 
   Future<int> insertMeta(Map<String, dynamic> meta) async {
@@ -933,46 +706,6 @@ class DBHelper {
     return await delete(tabelaMetas, id);
   }
 
-  Future<int> atualizarProgressoMeta(int id, double valorAtual) async {
-    PerformanceService.start('db_update_meta_progresso');
-
-    final db = await database;
-    final result = await db.update(
-      tabelaMetas,
-      {
-        'valor_atual': valorAtual,
-        'updated_at': _agoraBrasil(),
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    _clearTableCache(tabelaMetas);
-
-    PerformanceService.stop('db_update_meta_progresso');
-    return result;
-  }
-
-  Future<int> concluirMeta(int id) async {
-    PerformanceService.start('db_concluir_meta');
-
-    final db = await database;
-    final result = await db.update(
-      tabelaMetas,
-      {
-        'concluida': 1,
-        'updated_at': _agoraBrasil(),
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    _clearTableCache(tabelaMetas);
-
-    PerformanceService.stop('db_concluir_meta');
-    return result;
-  }
-
   // ========== MÉTODOS DE DEPÓSITOS DE METAS ==========
 
   Future<int> insertDepositoMeta(Map<String, dynamic> deposito) async {
@@ -990,15 +723,11 @@ class DBHelper {
   }
 
   Future<double> getTotalDepositosByMetaId(int metaId) async {
-    PerformanceService.start('db_total_depositos');
-
     final db = await database;
     final result = await db.rawQuery(
       'SELECT SUM(valor) as total FROM $tabelaDepositosMeta WHERE meta_id = ?',
       [metaId],
     );
-
-    PerformanceService.stop('db_total_depositos');
 
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -1039,6 +768,172 @@ class DBHelper {
 
   Future<int> deleteRendaFixa(int id) async {
     return await delete(tabelaRendaFixa, id);
+  }
+
+  // ========== MÉTODOS PARA CONTAS FIXAS ==========
+
+  Future<int> insertContaFixa(ContaFixa conta) async {
+    final db = await database;
+
+    return await db.transaction((txn) async {
+      final contaJson = {
+        'nome': conta.nome,
+        'valor_total': conta.valorTotal,
+        'total_parcelas': conta.totalParcelas,
+        'data_inicio': conta.dataInicio.toIso8601String(),
+        'categoria': conta.categoria,
+        'observacao': conta.observacao,
+        'created_at': _agoraBrasil(),
+        'updated_at': _agoraBrasil(),
+      };
+
+      final contaId = await txn.insert(tabelaContasFixas, contaJson);
+
+      for (var parcela in conta.parcelas) {
+        final parcelaJson = {
+          'conta_id': contaId,
+          'numero': parcela.numero,
+          'data_vencimento': parcela.dataVencimento.toIso8601String(),
+          'status': parcela.status.index,
+          'data_pagamento': parcela.dataPagamento?.toIso8601String(),
+          'valor_pago': parcela.valorPago,
+          'created_at': _agoraBrasil(),
+          'updated_at': _agoraBrasil(),
+        };
+        await txn.insert(tabelaParcelas, parcelaJson);
+      }
+
+      return contaId;
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getAllContasFixas() async {
+    return await query(
+      tabelaContasFixas,
+      orderBy: 'data_inicio DESC',
+      useCache: true,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getParcelasByContaId(int contaId) async {
+    return await query(
+      tabelaParcelas,
+      where: 'conta_id = ?',
+      whereArgs: [contaId],
+      orderBy: 'numero ASC',
+      useCache: true,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getContaFixaCompleta(int id) async {
+    final db = await database;
+
+    final conta = await db.query(
+      tabelaContasFixas,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (conta.isEmpty) return null;
+
+    final parcelas = await db.query(
+      tabelaParcelas,
+      where: 'conta_id = ?',
+      whereArgs: [id],
+      orderBy: 'numero ASC',
+    );
+
+    final contaJson = conta.first;
+    contaJson['parcelas'] = parcelas;
+
+    return contaJson;
+  }
+
+  // ========== MÉTODO UPDATE CONTA FIXA CORRIGIDO ==========
+  Future<int> updateContaFixa(ContaFixa conta) async {
+    final db = await database;
+
+    return await db.transaction((txn) async {
+      // 1. Atualizar os dados da conta principal
+      final contaJson = {
+        'nome': conta.nome,
+        'valor_total': conta.valorTotal,
+        'total_parcelas': conta.totalParcelas,
+        'data_inicio': conta.dataInicio.toIso8601String(),
+        'categoria': conta.categoria,
+        'observacao': conta.observacao,
+        'updated_at': _agoraBrasil(),
+      };
+
+      await txn.update(
+        tabelaContasFixas,
+        contaJson,
+        where: 'id = ?',
+        whereArgs: [conta.id],
+      );
+
+      // 2. DELETAR TODAS AS PARCELAS ANTIGAS
+      await txn.delete(
+        tabelaParcelas,
+        where: 'conta_id = ?',
+        whereArgs: [conta.id],
+      );
+
+      // 3. INSERIR AS PARCELAS NOVAS COM OS STATUS ATUALIZADOS
+      for (var parcela in conta.parcelas) {
+        final parcelaJson = {
+          'conta_id': conta.id,
+          'numero': parcela.numero,
+          'data_vencimento': parcela.dataVencimento.toIso8601String(),
+          'status': parcela.status.index,
+          'data_pagamento': parcela.dataPagamento?.toIso8601String(),
+          'valor_pago': parcela.valorPago,
+          'created_at': _agoraBrasil(),
+          'updated_at': _agoraBrasil(),
+        };
+        await txn.insert(tabelaParcelas, parcelaJson);
+      }
+
+      // 4. Limpar cache para forçar recarregamento
+      _clearTableCache(tabelaContasFixas);
+      _clearTableCache(tabelaParcelas);
+      _clearQueryCache();
+
+      debugPrint(
+          '✅ Conta ${conta.id} atualizada com ${conta.parcelas.length} parcelas');
+      return conta.id!;
+    });
+  }
+
+  Future<int> deleteContaFixa(int id) async {
+    return await delete(tabelaContasFixas, id);
+  }
+
+  Future<Map<String, dynamic>> getResumoContasFixas() async {
+    final db = await database;
+
+    final totalContas = await db.query(tabelaContasFixas);
+    final totalParcelas = await db.query(tabelaParcelas);
+
+    final parcelasPagas = await db.rawQuery(
+        'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 0');
+
+    final parcelasAPagar = await db.rawQuery(
+        'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 1');
+
+    final parcelasAtrasadas = await db.rawQuery(
+        'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 2');
+
+    return {
+      'totalContas': totalContas.length,
+      'totalParcelas': totalParcelas.length,
+      'parcelasPagas': parcelasPagas.first['count'] ?? 0,
+      'totalPago': parcelasPagas.first['total'] ?? 0,
+      'parcelasAPagar': parcelasAPagar.first['count'] ?? 0,
+      'totalAPagar': parcelasAPagar.first['total'] ?? 0,
+      'parcelasAtrasadas': parcelasAtrasadas.first['count'] ?? 0,
+      'totalAtrasado': parcelasAtrasadas.first['total'] ?? 0,
+    };
   }
 
   // ========== FUNÇÕES DE CÁLCULO PARA RENDA FIXA ==========
@@ -1197,158 +1092,215 @@ class DBHelper {
     };
   }
 
-  // ========== MÉTODOS PARA CONTAS FIXAS ==========
+  // ========== MÉTODOS ADICIONAIS ==========
 
-  Future<int> insertContaFixa(ContaFixa conta) async {
+  Future<void> insertLancamentosEmLote(
+      List<Map<String, dynamic>> lancamentos) async {
     final db = await database;
 
-    return await db.transaction((txn) async {
-      final contaJson = {
-        'nome': conta.nome,
-        'valor_total': conta.valorTotal,
-        'total_parcelas': conta.totalParcelas,
-        'data_inicio': conta.dataInicio.toIso8601String(),
-        'categoria': conta.categoria,
-        'observacao': conta.observacao,
-        'created_at': _agoraBrasil(),
-        'updated_at': _agoraBrasil(),
-      };
-
-      final contaId = await txn.insert(tabelaContasFixas, contaJson);
-
-      for (var parcela in conta.parcelas) {
-        final parcelaJson = {
-          'conta_id': contaId,
-          'numero': parcela.numero,
-          'data_vencimento': parcela.dataVencimento.toIso8601String(),
-          'status': parcela.status.index,
-          'data_pagamento': parcela.dataPagamento?.toIso8601String(),
-          'valor_pago': parcela.valorPago,
-          'created_at': _agoraBrasil(),
-          'updated_at': _agoraBrasil(),
-        };
-        await txn.insert(tabelaParcelas, parcelaJson);
+    await db.transaction((txn) async {
+      for (var lancamento in lancamentos) {
+        lancamento['created_at'] = _agoraBrasil();
+        lancamento['updated_at'] = _agoraBrasil();
+        await txn.insert(tabelaLancamentos, lancamento);
       }
-
-      return contaId;
     });
+
+    _clearTableCache(tabelaLancamentos);
+    _clearQueryCache();
   }
 
-  Future<List<Map<String, dynamic>>> getAllContasFixas() async {
-    return await query(
-      tabelaContasFixas,
-      orderBy: 'data_inicio DESC',
-      useCache: true,
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getParcelasByContaId(int contaId) async {
-    return await query(
-      tabelaParcelas,
-      where: 'conta_id = ?',
-      whereArgs: [contaId],
-      orderBy: 'numero ASC',
-      useCache: true,
-    );
-  }
-
-  Future<Map<String, dynamic>?> getContaFixaCompleta(int id) async {
+  Future<void> updateInvestimentosEmLote(
+      List<Map<String, dynamic>> investimentos) async {
     final db = await database;
 
-    final conta = await db.query(
-      tabelaContasFixas,
+    await db.transaction((txn) async {
+      for (var item in investimentos) {
+        final id = item['id'];
+        item.remove('id');
+        item['updated_at'] = _agoraBrasil();
+        await txn.update(
+          tabelaInvestimentos,
+          item,
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+    });
+
+    _clearTableCache(tabelaInvestimentos);
+    _clearQueryCache();
+  }
+
+  Future<void> deleteEmLote(String table, List<int> ids) async {
+    if (ids.isEmpty) return;
+
+    final db = await database;
+    final placeholders = List.filled(ids.length, '?').join(',');
+
+    await db.execute(
+      'DELETE FROM $table WHERE id IN ($placeholders)',
+      ids,
+    );
+
+    _clearTableCache(table);
+    _clearQueryCache();
+  }
+
+  Future<List<Map<String, dynamic>>> getLancamentosPaginados({
+    required int pagina,
+    int porPagina = 20,
+    String? tipo,
+    String? categoria,
+    DateTime? dataInicio,
+    DateTime? dataFim,
+    OrdemLancamento ordem = OrdemLancamento.dataDesc,
+    bool useCache = true,
+  }) async {
+    final db = await database;
+
+    String where = '1=1';
+    List<dynamic> whereArgs = [];
+
+    if (tipo != null && tipo != 'Todos') {
+      where += ' AND tipo = ?';
+      whereArgs.add(tipo);
+    }
+
+    if (categoria != null && categoria != 'Todas') {
+      where += ' AND categoria = ?';
+      whereArgs.add(categoria);
+    }
+
+    if (dataInicio != null) {
+      where += ' AND date(data) >= date(?)';
+      whereArgs.add(dataInicio.toIso8601String());
+    }
+
+    if (dataFim != null) {
+      where += ' AND date(data) <= date(?)';
+      whereArgs.add(dataFim.toIso8601String());
+    }
+
+    String orderBy;
+    switch (ordem) {
+      case OrdemLancamento.dataDesc:
+        orderBy = 'data DESC, id DESC';
+        break;
+      case OrdemLancamento.dataAsc:
+        orderBy = 'data ASC, id ASC';
+        break;
+      case OrdemLancamento.valorDesc:
+        orderBy = 'valor DESC, data DESC';
+        break;
+      case OrdemLancamento.valorAsc:
+        orderBy = 'valor ASC, data ASC';
+        break;
+    }
+
+    final offset = (pagina - 1) * porPagina;
+
+    final cacheKey =
+        'lancamentos_paginados_${pagina}_${tipo}_${categoria}_${dataInicio}_${dataFim}_$ordem';
+
+    if (useCache &&
+        _queryCache.containsKey(cacheKey) &&
+        _queryCache[cacheKey]!.isValid) {
+      return List<Map<String, dynamic>>.from(_queryCache[cacheKey]!.data);
+    }
+
+    final result = await db.query(
+      tabelaLancamentos,
+      where: where,
+      whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
+      orderBy: orderBy,
+      limit: porPagina,
+      offset: offset,
+    );
+
+    if (useCache) {
+      _queryCache[cacheKey] = CacheEntry(result, DateTime.now());
+    }
+
+    return result;
+  }
+
+  Future<List<Map<String, dynamic>>> getProventosFuturos() async {
+    final db = await database;
+    return await db.query(
+      tabelaProventos,
+      where: 'data_pagamento > ?',
+      whereArgs: [DateTime.now().toIso8601String()],
+      orderBy: 'data_pagamento ASC',
+    );
+  }
+
+  Future<double> getTotalProventosMes({int? mes, int? ano}) async {
+    final agora = DateTime.now();
+    final mesAlvo = mes ?? agora.month;
+    final anoAlvo = ano ?? agora.year;
+
+    final primeiroDia = DateTime(anoAlvo, mesAlvo, 1);
+    final ultimoDia = DateTime(anoAlvo, mesAlvo + 1, 0);
+
+    final db = await database;
+    final results = await db.query(
+      tabelaProventos,
+      where: 'date(data_pagamento) BETWEEN date(?) AND date(?)',
+      whereArgs: [primeiroDia.toIso8601String(), ultimoDia.toIso8601String()],
+    );
+
+    return results.fold<double>(
+      0,
+      (sum, item) => sum + ((item['total_recebido'] as num?)?.toDouble() ?? 0),
+    );
+  }
+
+  Future<int> updatePrecoAtual(int id, double preco) async {
+    final db = await database;
+    final result = await db.update(
+      tabelaInvestimentos,
+      {
+        'preco_atual': preco,
+        'ultima_atualizacao': _agoraBrasil(),
+      },
       where: 'id = ?',
       whereArgs: [id],
     );
 
-    if (conta.isEmpty) return null;
+    _clearTableCache(tabelaInvestimentos);
+    return result;
+  }
 
-    final parcelas = await db.query(
-      tabelaParcelas,
-      where: 'conta_id = ?',
+  Future<int> atualizarProgressoMeta(int id, double valorAtual) async {
+    final db = await database;
+    final result = await db.update(
+      tabelaMetas,
+      {
+        'valor_atual': valorAtual,
+        'updated_at': _agoraBrasil(),
+      },
+      where: 'id = ?',
       whereArgs: [id],
-      orderBy: 'numero ASC',
     );
 
-    final contaJson = conta.first;
-    contaJson['parcelas'] = parcelas;
-
-    return contaJson;
+    _clearTableCache(tabelaMetas);
+    return result;
   }
 
-  Future<int> updateContaFixa(ContaFixa conta) async {
+  Future<int> concluirMeta(int id) async {
     final db = await database;
-
-    return await db.transaction((txn) async {
-      final contaJson = {
-        'nome': conta.nome,
-        'valor_total': conta.valorTotal,
-        'total_parcelas': conta.totalParcelas,
-        'data_inicio': conta.dataInicio.toIso8601String(),
-        'categoria': conta.categoria,
-        'observacao': conta.observacao,
+    final result = await db.update(
+      tabelaMetas,
+      {
+        'concluida': 1,
         'updated_at': _agoraBrasil(),
-      };
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
 
-      await txn.update(
-        tabelaContasFixas,
-        contaJson,
-        where: 'id = ?',
-        whereArgs: [conta.id],
-      );
-
-      await txn.delete(
-        tabelaParcelas,
-        where: 'conta_id = ?',
-        whereArgs: [conta.id],
-      );
-
-      for (var parcela in conta.parcelas) {
-        final parcelaJson = {
-          'conta_id': conta.id,
-          'numero': parcela.numero,
-          'data_vencimento': parcela.dataVencimento.toIso8601String(),
-          'status': parcela.status.index,
-          'data_pagamento': parcela.dataPagamento?.toIso8601String(),
-          'valor_pago': parcela.valorPago,
-          'created_at': _agoraBrasil(),
-          'updated_at': _agoraBrasil(),
-        };
-        await txn.insert(tabelaParcelas, parcelaJson);
-      }
-
-      return conta.id!;
-    });
-  }
-
-  Future<int> deleteContaFixa(int id) async {
-    return await delete(tabelaContasFixas, id);
-  }
-
-  Future<Map<String, dynamic>> getResumoContasFixas() async {
-    final db = await database;
-
-    final totalContas = await db.query(tabelaContasFixas);
-    final totalParcelas = await db.query(tabelaParcelas);
-
-    final parcelasPagas = await db.rawQuery(
-        'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 0');
-
-    final parcelasAPagar = await db.rawQuery(
-        'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 1');
-
-    final parcelasAtrasadas = await db.rawQuery(
-        'SELECT COUNT(*) as count, SUM(valor_pago) as total FROM $tabelaParcelas WHERE status = 2');
-
-    return {
-      'totalContas': totalContas.length,
-      'totalParcelas': totalParcelas.length,
-      'parcelasPagas': parcelasPagas.first['count'] ?? 0,
-      'totalPago': parcelasPagas.first['total'] ?? 0,
-      'parcelasAPagar': parcelasAPagar.first['count'] ?? 0,
-      'totalAPagar': parcelasAPagar.first['total'] ?? 0,
-      'parcelasAtrasadas': parcelasAtrasadas.first['count'] ?? 0,
-      'totalAtrasado': parcelasAtrasadas.first['total'] ?? 0,
-    };
+    _clearTableCache(tabelaMetas);
+    return result;
   }
 }

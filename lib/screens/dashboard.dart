@@ -1,8 +1,10 @@
 // lib/screens/dashboard.dart
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
+import '../repositories/lancamento_repository.dart'; // 🔥 NOVO
 import '../services/backup_service_plus.dart';
 import '../utils/date_helper.dart';
 import '../constants/app_colors.dart';
@@ -53,7 +55,8 @@ class DashboardScreen extends StatefulWidget {
 
 class DashboardScreenState extends State<DashboardScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
-  final DBHelper db = DBHelper();
+  // 🔥 Usar repositório
+  final LancamentoRepository _lancamentoRepo = LancamentoRepository();
   final BackupServicePlus _backupService = BackupServicePlus();
 
   DashboardData? _dados;
@@ -93,7 +96,6 @@ class DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
-  // Carregar informações do backup - CORRIGIDO!
   Future<void> _carregarInfoBackup() async {
     setState(() => _carregandoBackup = true);
     try {
@@ -102,10 +104,8 @@ class DashboardScreenState extends State<DashboardScreen>
         final ultimoBackup = backups.first;
         final nome = ultimoBackup.path.split('\\').last;
 
-        // Tentar extrair data do nome do arquivo (já está em Brasília)
         DateTime? dataBackup = DateHelper.dataDoNomeArquivo(nome);
 
-        // Se não conseguir, usar data de modificação e converter
         if (dataBackup == null) {
           final dataUtc = ultimoBackup.statSync().modified;
           dataBackup = DateHelper.utcParaBrasilia(dataUtc);
@@ -114,7 +114,7 @@ class DashboardScreenState extends State<DashboardScreen>
         setState(() {
           _infoBackup = {
             'existe': true,
-            'data': dataBackup, // AGORA ESTÁ EM BRASÍLIA!
+            'data': dataBackup,
             'caminho': ultimoBackup.path,
           };
         });
@@ -161,7 +161,8 @@ class DashboardScreenState extends State<DashboardScreen>
         return;
       }
 
-      final lancamentos = await db.getAllLancamentos();
+      // 🔥 Usar repositório
+      final lancamentos = await _lancamentoRepo.getAllLancamentos();
       final dados = _processarLancamentos(lancamentos, _mesSelecionado);
 
       _cache[cacheKey] = dados;
@@ -273,7 +274,6 @@ class DashboardScreenState extends State<DashboardScreen>
     _carregarDados();
   }
 
-  // LEMBRETE DE BACKUP CORRIGIDO!
   Widget _buildLembreteBackup() {
     if (_carregandoBackup) return const SizedBox.shrink();
 
@@ -316,13 +316,9 @@ class DashboardScreenState extends State<DashboardScreen>
       );
     }
 
-    // DATA JÁ ESTÁ EM BRASÍLIA!
     final dataBackup = _infoBackup['data'] as DateTime;
-
-    // Pegar data de HOJE em Brasília
     final hoje = DateHelper.agoraBrasilia();
 
-    // Criar datas sem hora para comparação correta
     final dataBackupSemHora =
         DateTime(dataBackup.year, dataBackup.month, dataBackup.day);
     final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);
@@ -332,11 +328,6 @@ class DashboardScreenState extends State<DashboardScreen>
     final cor = diasAtras > 7 ? Colors.orange : Colors.green;
     final corFundo =
         diasAtras > 7 ? Colors.orange.shade50 : Colors.green.shade50;
-
-    // Debug para verificar
-    debugPrint('📅 Data backup: $dataBackup');
-    debugPrint('📅 Data hoje: $hoje');
-    debugPrint('📅 Dias atrás: $diasAtras');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

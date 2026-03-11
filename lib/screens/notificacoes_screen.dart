@@ -1,6 +1,9 @@
+// lib/screens/notificacoes_screen.dart
+
 import 'package:flutter/material.dart';
-import '../services/notification_service.dart';
 import 'package:intl/intl.dart';
+import '../services/notification_service.dart';
+import '../utils/date_helper.dart'; // 🔥 NOVO
 
 class NotificacoesScreen extends StatefulWidget {
   const NotificacoesScreen({super.key});
@@ -21,7 +24,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
   }
 
   String _formatarData(DateTime data) {
-    final now = DateTime.now();
+    final now = DateHelper.agoraBrasilia(); // 🔥 Usar DateHelper
     final difference = now.difference(data);
 
     if (difference.inDays == 0) {
@@ -131,7 +134,6 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
               itemCount: notificacoes.length,
               itemBuilder: (context, index) {
                 final notif = notificacoes[index];
-                // 🔥 AGORA USA MAP, NÃO CLASSE
                 final bool lida = notif['lida'] ?? false;
                 final String ticker = notif['ticker'] ?? '';
                 final String titulo = notif['titulo'] ?? 'Notificação';

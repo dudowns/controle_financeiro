@@ -1,7 +1,9 @@
 // lib/screens/metas_screen.dart
+
 import 'package:flutter/material.dart';
-import '../database/db_helper.dart';
 import 'package:intl/intl.dart';
+import '../database/db_helper.dart';
+import '../repositories/meta_repository.dart'; // NOVO: import do repositório
 import 'nova_meta_screen.dart';
 import 'detalhes_meta_screen.dart';
 import '../constants/app_colors.dart';
@@ -28,8 +30,12 @@ class MetasScreen extends StatefulWidget {
 
 class _MetasScreenState extends State<MetasScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
-  final DBHelper db = DBHelper();
+  // 🔥 MUDANÇA 1: Usar o repositório ao invés do DBHelper diretamente
+  final MetaRepository _metaRepo = MetaRepository();
+
   List<Map<String, dynamic>> metas = [];
+  Map<String, dynamic>? estatisticas;
+
   bool carregando = true;
   bool _primeiraCarga = true;
 
@@ -63,11 +69,24 @@ class _MetasScreenState extends State<MetasScreen>
     super.dispose();
   }
 
+  // 🔥 MUDANÇA 2: Método de carregamento usando o repositório
   Future<void> _carregarMetas() async {
     PerformanceService.start('carregarMetas');
 
     setState(() => carregando = true);
-    metas = await db.getAllMetas();
+
+    try {
+      // Carregar metas COM os depósitos
+      metas = await _metaRepo.getAllMetasComDepositos();
+
+      // Carregar estatísticas
+      estatisticas = await _metaRepo.getEstatisticasMetas();
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar metas: $e');
+
+      // Fallback: carregar só as metas se algo der errado
+      metas = await _metaRepo.getAllMetas();
+    }
 
     PerformanceService.stop('carregarMetas');
 
@@ -77,6 +96,15 @@ class _MetasScreenState extends State<MetasScreen>
     });
 
     // Iniciar animação de progresso após carregar
+    _progressAnimationController.forward();
+  }
+
+  // 🔥 MUDANÇA 3: Método para atualizar após adicionar/editar
+  Future<void> _atualizarAposAcao() async {
+    await _carregarMetas();
+
+    // Reiniciar animação de progresso
+    _progressAnimationController.reset();
     _progressAnimationController.forward();
   }
 
@@ -125,6 +153,31 @@ class _MetasScreenState extends State<MetasScreen>
         backgroundColor: AppColors.primaryPurple,
         foregroundColor: Colors.white,
         actions: [
+          // 🔥 NOVO: Botão de estatísticas
+          if (estatisticas != null && !carregando)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSizes.paddingM,
+                    vertical: AppSizes.paddingXS,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(AppSizes.radiusXL),
+                  ),
+                  child: Text(
+                    '${estatisticas!['emAndamento']} pendentes',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _carregarMetas,
@@ -143,7 +196,7 @@ class _MetasScreenState extends State<MetasScreen>
             ),
           );
           if (result == true) {
-            _carregarMetas();
+            await _atualizarAposAcao(); // 🔥 Usando o método novo
           }
         },
       ),
@@ -175,7 +228,7 @@ class _MetasScreenState extends State<MetasScreen>
           ),
         );
         if (result == true) {
-          _carregarMetas();
+          await _atualizarAposAcao(); // 🔥 Usando o método novo
         }
       },
     );
@@ -204,6 +257,10 @@ class _MetasScreenState extends State<MetasScreen>
     final icone = _getIconePorTipo(meta['icone']);
     final concluida = meta['concluida'] == 1;
 
+    // 🔥 NOVO: Calcular total de depósitos se existir
+    final depositos = meta['depositos'] as List?;
+    final totalDepositos = depositos?.length ?? 0;
+
     // Animação de entrada em cascata
     final delay = index * 100;
 
@@ -229,7 +286,7 @@ class _MetasScreenState extends State<MetasScreen>
             ),
           );
           if (result == true) {
-            _carregarMetas();
+            await _atualizarAposAcao(); // 🔥 Usando o método novo
           }
         },
         child: Container(
@@ -275,6 +332,18 @@ class _MetasScreenState extends State<MetasScreen>
                             style: AppTextStyles.caption,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                          ),
+                        // 🔥 NOVO: Mostrar quantidade de depósitos
+                        if (totalDepositos > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              '$totalDepositos ${totalDepositos == 1 ? 'depósito' : 'depósitos'}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -323,7 +392,7 @@ class _MetasScreenState extends State<MetasScreen>
                       const SizedBox(height: AppSizes.paddingXS),
                       AnimatedCounter(
                         value: valorAtual,
-                        formatter: CurrencyFormatter.format, // 🔥 CORRIGIDO!
+                        formatter: CurrencyFormatter.format,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
@@ -341,7 +410,7 @@ class _MetasScreenState extends State<MetasScreen>
                       const SizedBox(height: AppSizes.paddingXS),
                       AnimatedCounter(
                         value: valorObjetivo,
-                        formatter: CurrencyFormatter.format, // 🔥 CORRIGIDO!
+                        formatter: CurrencyFormatter.format,
                         style: const TextStyle(
                           fontSize: 14,
                         ),
@@ -447,7 +516,7 @@ class _MetasScreenState extends State<MetasScreen>
                       AnimatedCounter(
                         value: (valorObjetivo - valorAtual)
                             .clamp(0, valorObjetivo),
-                        formatter: CurrencyFormatter.format, // 🔥 CORRIGIDO!
+                        formatter: CurrencyFormatter.format,
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,

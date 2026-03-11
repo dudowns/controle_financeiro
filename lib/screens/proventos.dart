@@ -1,7 +1,11 @@
 // lib/screens/proventos.dart
+
 import 'package:flutter/material.dart';
-import '../database/db_helper.dart';
 import 'package:intl/intl.dart';
+import '../database/db_helper.dart';
+import '../repositories/provento_repository.dart';
+import '../models/provento_model.dart';
+import '../utils/date_helper.dart';
 import 'editar_provento.dart';
 import 'adicionar_provento.dart';
 import '../constants/app_colors.dart';
@@ -30,26 +34,17 @@ class ProventosScreen extends StatefulWidget {
 
 class _ProventosScreenState extends State<ProventosScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
-  final DBHelper db = DBHelper();
-  List<Map<String, dynamic>> proventos = [];
-  List<Map<String, dynamic>> investimentos = [];
+  final ProventoRepository _proventoRepo = ProventoRepository();
+
+  List<Provento> proventos = [];
+  Map<String, dynamic>? estatisticas;
+
   bool carregando = true;
   bool _primeiraCarga = true;
 
-  // Animações
   late AnimationController _animationController;
   late AnimationController _chartAnimationController;
 
-  // Estatísticas
-  double totalProventos = 0;
-  double proventosMes = 0;
-  double proventosAno = 0;
-  double proventos12Meses = 0;
-  Map<String, double> proventosPorTicker = {};
-  Map<String, double> proventosPorMes = {};
-  List<String> meses = [];
-
-  // 🔥 CORES COM CONTRASTE - APENAS A USADA!
   static const Color _profitText = Color(0xFF4CAF50);
 
   @override
@@ -84,9 +79,12 @@ class _ProventosScreenState extends State<ProventosScreen>
 
     setState(() => carregando = true);
 
-    proventos = await db.getAllProventos();
-    investimentos = await db.getAllInvestimentos();
-    _calcularEstatisticas();
+    try {
+      proventos = await _proventoRepo.getAll();
+      estatisticas = await _proventoRepo.getEstatisticas();
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar proventos: $e');
+    }
 
     PerformanceService.stop('carregarProventos');
 
@@ -96,73 +94,11 @@ class _ProventosScreenState extends State<ProventosScreen>
     });
   }
 
-  void _calcularEstatisticas() {
-    totalProventos = 0;
-    proventosMes = 0;
-    proventosAno = 0;
-    proventos12Meses = 0;
-    proventosPorTicker.clear();
-    proventosPorMes.clear();
-
-    final agora = DateTime.now();
-    final inicioMes = DateTime(agora.year, agora.month, 1);
-    final inicioAno = DateTime(agora.year, 1, 1);
-    final umAnoAtras = DateTime(agora.year - 1, agora.month, agora.day);
-
-    // GERAR MESES DOS ÚLTIMOS 6 MESES
-    meses.clear();
-    for (int i = 5; i >= 0; i--) {
-      final data = DateTime(agora.year, agora.month - i, 1);
-      final chave = DateFormat('MM/yyyy').format(data);
-      meses.add(DateFormat('MMM').format(data));
-      proventosPorMes[chave] = 0;
-    }
-
-    for (var p in proventos) {
-      final valor = (p['total_recebido'] ?? 0).toDouble();
-      final ticker = p['ticker'] ?? '';
-      final dataPagamento = DateTime.parse(p['data_pagamento']);
-
-      totalProventos += valor;
-
-      if (dataPagamento.isAfter(inicioMes) ||
-          dataPagamento.isAtSameMomentAs(inicioMes)) {
-        proventosMes += valor;
-      }
-
-      if (dataPagamento.isAfter(inicioAno) ||
-          dataPagamento.isAtSameMomentAs(inicioAno)) {
-        proventosAno += valor;
-      }
-
-      if (dataPagamento.isAfter(umAnoAtras)) {
-        proventos12Meses += valor;
-      }
-
-      proventosPorTicker[ticker] = (proventosPorTicker[ticker] ?? 0) + valor;
-
-      final chaveMes = DateFormat('MM/yyyy').format(dataPagamento);
-      proventosPorMes[chaveMes] = (proventosPorMes[chaveMes] ?? 0) + valor;
-    }
-  }
-
-  List<Map<String, dynamic>> _getProximosProventos() {
-    final hoje = DateTime.now();
-    final proximos = proventos.where((p) {
-      try {
-        final data = DateTime.parse(p['data_pagamento']);
-        return data.isAfter(hoje);
-      } catch (e) {
-        return false;
-      }
-    }).toList();
-
-    proximos.sort((a, b) {
-      final dataA = DateTime.parse(a['data_pagamento']);
-      final dataB = DateTime.parse(b['data_pagamento']);
-      return dataA.compareTo(dataB);
-    });
-
+  List<Provento> _getProximosProventos() {
+    final hoje = DateHelper.agoraBrasilia();
+    final proximos =
+        proventos.where((p) => p.dataPagamento.isAfter(hoje)).toList();
+    proximos.sort((a, b) => a.dataPagamento.compareTo(b.dataPagamento));
     return proximos.take(5).toList();
   }
 
@@ -243,28 +179,19 @@ class _ProventosScreenState extends State<ProventosScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cards de resumo
             _buildResumoCards(),
             const SizedBox(height: AppSizes.paddingL),
-
-            // Gráfico de evolução
             _buildGraficoEvolucao(),
             const SizedBox(height: AppSizes.paddingL),
-
-            // Próximos proventos
             if (proximos.isNotEmpty) ...[
               _buildProximosProventos(proximos),
               const SizedBox(height: AppSizes.paddingL),
             ],
-
-            // Histórico
             const Text(
               'Histórico de Proventos',
               style: AppTextStyles.subtitle1,
             ),
             const SizedBox(height: AppSizes.paddingM),
-
-            // Lista de proventos
             ...proventos.asMap().entries.map((entry) {
               final index = entry.key;
               final p = entry.value;
@@ -277,12 +204,16 @@ class _ProventosScreenState extends State<ProventosScreen>
   }
 
   Widget _buildResumoCards() {
+    final total = estatisticas?['total'] ?? 0.0;
+    final mes = estatisticas?['mes'] ?? 0.0;
+    final ultimos12Meses = estatisticas?['ultimos12Meses'] ?? 0.0;
+
     return Row(
       children: [
         Expanded(
           child: _buildResumoCard(
             'Total',
-            totalProventos,
+            total,
             Icons.account_balance_wallet,
             AppColors.primaryPurple,
           ),
@@ -291,7 +222,7 @@ class _ProventosScreenState extends State<ProventosScreen>
         Expanded(
           child: _buildResumoCard(
             'Este mês',
-            proventosMes,
+            mes,
             Icons.calendar_today,
             _profitText,
           ),
@@ -300,7 +231,7 @@ class _ProventosScreenState extends State<ProventosScreen>
         Expanded(
           child: _buildResumoCard(
             '12 meses',
-            proventos12Meses,
+            ultimos12Meses,
             Icons.calendar_view_month,
             Colors.blue,
           ),
@@ -353,16 +284,30 @@ class _ProventosScreenState extends State<ProventosScreen>
     );
   }
 
-  // GRÁFICO CORRIGIDO (sem overflow)
   Widget _buildGraficoEvolucao() {
+    final porMes = estatisticas?['porMes'] as Map<String, double>? ?? {};
+
+    if (porMes.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(AppSizes.paddingL),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppSizes.radiusL),
+        ),
+        child: const Center(
+          child: Text('Sem dados para exibir'),
+        ),
+      );
+    }
+
     // Pegar últimos 6 meses
-    final agora = DateTime.now();
+    final agora = DateHelper.agoraBrasilia();
     final List<Map<String, dynamic>> dadosGrafico = [];
 
     for (int i = 5; i >= 0; i--) {
       final data = DateTime(agora.year, agora.month - i, 1);
       final chave = DateFormat('MM/yyyy').format(data);
-      final valor = proventosPorMes[chave] ?? 0.0;
+      final valor = porMes[chave] ?? 0.0;
       final mes = DateFormat('MMM').format(data);
 
       dadosGrafico.add({
@@ -385,7 +330,7 @@ class _ProventosScreenState extends State<ProventosScreen>
         borderRadius: BorderRadius.circular(AppSizes.radiusL),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -402,8 +347,6 @@ class _ProventosScreenState extends State<ProventosScreen>
             ),
           ),
           const SizedBox(height: AppSizes.paddingL),
-
-          // Container com altura fixa para evitar overflow
           SizedBox(
             height: 180,
             child: Row(
@@ -413,7 +356,6 @@ class _ProventosScreenState extends State<ProventosScreen>
                 final valor = item['valor'] as double;
                 final mes = item['mes'] as String;
 
-                // Calcular altura da barra (mínimo 4px para visibilidade)
                 double barraAltura =
                     maxValor > 0 ? (valor / maxValor) * alturaMaxima : 4.0;
 
@@ -423,7 +365,6 @@ class _ProventosScreenState extends State<ProventosScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      // Valor acima da barra
                       Text(
                         CurrencyFormatter.formatCompact(valor),
                         style: TextStyle(
@@ -433,8 +374,6 @@ class _ProventosScreenState extends State<ProventosScreen>
                         ),
                       ),
                       const SizedBox(height: 4),
-
-                      // Barra
                       Container(
                         height: barraAltura,
                         width: 30,
@@ -450,21 +389,9 @@ class _ProventosScreenState extends State<ProventosScreen>
                                 : [Colors.grey[300]!, Colors.grey[200]!],
                           ),
                           borderRadius: BorderRadius.circular(6),
-                          boxShadow: valor > 0
-                              ? [
-                                  BoxShadow(
-                                    color: AppColors.primaryPurple
-                                        .withValues(alpha: 0.3),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  )
-                                ]
-                              : null,
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                      // Mês
                       Text(
                         mes,
                         style: TextStyle(
@@ -479,39 +406,12 @@ class _ProventosScreenState extends State<ProventosScreen>
               }).toList(),
             ),
           ),
-
-          const SizedBox(height: AppSizes.paddingM),
-
-          // Legenda
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      AppColors.primaryPurple,
-                      AppColors.secondaryPurple
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Text(
-                'Proventos recebidos',
-                style: TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildProximosProventos(List<Map<String, dynamic>> proximos) {
+  Widget _buildProximosProventos(List<Provento> proximos) {
     return ModernCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,7 +421,7 @@ class _ProventosScreenState extends State<ProventosScreen>
               Container(
                 padding: const EdgeInsets.all(AppSizes.paddingS),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
+                  color: Colors.orange.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppSizes.radiusM),
                 ),
                 child: const Icon(Icons.event_available,
@@ -545,10 +445,10 @@ class _ProventosScreenState extends State<ProventosScreen>
     );
   }
 
-  Widget _buildProximoItem(Map<String, dynamic> p, int index) {
-    final data = DateTime.parse(p['data_pagamento']);
-    final diasRestantes = data.difference(DateTime.now()).inDays;
-    final isRendaFixa = p['tipo_provento'] == 'Renda Fixa';
+  Widget _buildProximoItem(Provento p, int index) {
+    final hoje = DateHelper.agoraBrasilia();
+    final diasRestantes = p.dataPagamento.difference(hoje).inDays;
+    final isRendaFixa = p.tipo == TipoProvento.rendaFixa;
     final cor = isRendaFixa ? Colors.teal : _profitText;
     final icone = isRendaFixa ? Icons.savings : Icons.trending_up;
 
@@ -572,13 +472,6 @@ class _ProventosScreenState extends State<ProventosScreen>
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppSizes.radiusM),
           border: Border.all(color: Colors.grey[200]!),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Row(
           children: [
@@ -586,7 +479,7 @@ class _ProventosScreenState extends State<ProventosScreen>
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: cor.withValues(alpha: 0.1),
+                color: cor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppSizes.radiusS),
               ),
               child: Icon(icone, color: cor, size: AppSizes.iconS),
@@ -597,14 +490,14 @@ class _ProventosScreenState extends State<ProventosScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    p['ticker'],
+                    p.ticker,
                     style: AppTextStyles.body1.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${DateFormatter.formatDate(data)} • $diasRestantes dias',
+                    '${DateFormatter.formatDate(p.dataPagamento)} • $diasRestantes dias',
                     style: AppTextStyles.caption,
                   ),
                 ],
@@ -614,7 +507,7 @@ class _ProventosScreenState extends State<ProventosScreen>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 AnimatedCounter(
-                  value: p['total_recebido']?.toDouble() ?? 0,
+                  value: p.totalRecebido,
                   formatter: CurrencyFormatter.format,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
@@ -628,7 +521,7 @@ class _ProventosScreenState extends State<ProventosScreen>
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
+                    color: Colors.orange.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -647,18 +540,14 @@ class _ProventosScreenState extends State<ProventosScreen>
     );
   }
 
-  Widget _buildProventoCard(Map<String, dynamic> item, int index) {
-    final isRendaFixa = item['tipo_provento'] == 'Renda Fixa';
+  Widget _buildProventoCard(Provento item, int index) {
+    final isRendaFixa = item.tipo == TipoProvento.rendaFixa;
     final cor = isRendaFixa
         ? Colors.teal
-        : (item['ticker']?.contains('11') ?? false
-            ? Colors.green
-            : _profitText);
+        : (item.ticker.contains('11') ? Colors.green : _profitText);
     final icone = isRendaFixa
         ? Icons.savings
-        : (item['ticker']?.contains('11') ?? false
-            ? Icons.apartment
-            : Icons.trending_up);
+        : (item.ticker.contains('11') ? Icons.apartment : Icons.trending_up);
 
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: 1),
@@ -678,7 +567,7 @@ class _ProventosScreenState extends State<ProventosScreen>
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => EditarProventoScreen(provento: item),
+              builder: (_) => EditarProventoScreen(provento: item.toJson()),
             ),
           );
           if (result == true) {
@@ -691,7 +580,7 @@ class _ProventosScreenState extends State<ProventosScreen>
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: cor.withValues(alpha: 0.1),
+                color: cor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppSizes.radiusM),
               ),
               child: Icon(icone, color: cor, size: AppSizes.iconM),
@@ -702,18 +591,18 @@ class _ProventosScreenState extends State<ProventosScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item['ticker'],
+                    item.ticker,
                     style: AppTextStyles.body1.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
                   Text(
-                    '${item['tipo_provento'] ?? 'Dividendo'} • ${DateFormatter.formatDate(DateTime.parse(item['data_pagamento']))}',
+                    '${item.tipo.nome} • ${DateFormatter.formatDate(item.dataPagamento)}',
                     style: AppTextStyles.caption,
                   ),
                   Text(
-                    '${item['quantidade'] ?? 1} cotas • ${CurrencyFormatter.format(item['valor_por_cota'] ?? 0)}/cota',
+                    '${item.quantidade.toStringAsFixed(0)} cotas • ${CurrencyFormatter.format(item.valorPorCota)}/cota',
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey[600],
@@ -723,7 +612,7 @@ class _ProventosScreenState extends State<ProventosScreen>
               ),
             ),
             AnimatedCounter(
-              value: item['total_recebido']?.toDouble() ?? 0,
+              value: item.totalRecebido,
               formatter: CurrencyFormatter.format,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
@@ -737,7 +626,6 @@ class _ProventosScreenState extends State<ProventosScreen>
   }
 }
 
-// ========== SKELETON LOADING ==========
 class _ProventosSkeleton extends StatelessWidget {
   const _ProventosSkeleton();
 
@@ -747,7 +635,6 @@ class _ProventosSkeleton extends StatelessWidget {
       padding: const EdgeInsets.all(AppSizes.paddingL),
       child: Column(
         children: [
-          // Cards resumo skeleton
           Row(
             children: [
               Expanded(
@@ -788,8 +675,6 @@ class _ProventosSkeleton extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSizes.paddingL),
-
-          // Gráfico skeleton
           SkeletonLoader(
             child: Container(
               height: 200,
@@ -800,8 +685,6 @@ class _ProventosSkeleton extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSizes.paddingL),
-
-          // Lista skeleton
           ...List.generate(
               3,
               (index) => Padding(

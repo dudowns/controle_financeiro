@@ -3,14 +3,18 @@ lib/
 ├── main.dart
 │
 ├── screens/
+│   ├── adicionar_conta_fixa_dialog.dart
 │   ├── adicionar_deposito.dart
 │   ├── adicionar_investimento.dart
 │   ├── adicionar_provento.dart
 │   ├── analise_screen.dart
 │   ├── backup_screen.dart
+│   ├── contas_fixas_screen.dart
 │   ├── dashboard.dart
 │   ├── detalhes_ativo.dart
 │   ├── detalhes_meta_screen.dart
+│   ├── detalhes_renda_fixa.dart
+│   ├── editar_conta_fixa_dialog.dart
 │   ├── editar_investimento.dart
 │   ├── editar_provento.dart
 │   ├── editar_transacao.dart
@@ -22,8 +26,9 @@ lib/
 │   ├── notificacoes_screen.dart
 │   ├── nova_meta_screen.dart
 │   ├── nova_transacao.dart
+│   ├── novo_investimento_dialog.dart
 │   ├── proventos.dart
-│   ├── renda_fixa_dialog.dart
+│   ├── renda_fixa_screen.dart
 │   └── splash_screen.dart
 │
 ├── database/
@@ -35,22 +40,32 @@ lib/
 │   ├── logger_service.dart
 │   ├── notification_service.dart
 │   ├── performance_service.dart
+│   ├── renda_fixa_diaria.dart
 │   ├── theme_service.dart
 │   ├── updater_service.dart
 │   └── yahoo_finance_service.dart
 │
-├── constants/
-│   ├── app_animations.dart
-│   ├── app_colors.dart
-│   ├── app_pages.dart
-│   ├── app_routes.dart
-│   ├── app_sizes.dart
-│   ├── app_strings.dart
-│   └── app_text_styles.dart
+├── models/
+│   ├── conta_fixa_model.dart
+│   ├── investimento_model.dart
+│   ├── lancamento_model.dart
+│   ├── meta_model.dart
+│   ├── notification_model.dart
+│   ├── provento_model.dart
+│   └── renda_fixa_model.dart
+│
+├── repositories/
+│   ├── base_repository.dart
+│   ├── investimento_repository.dart
+│   ├── lancamento_repository.dart
+│   ├── meta_repository.dart
+│   ├── provento_repository.dart
+│   └── renda_fixa_repository.dart
 │
 ├── utils/
 │   ├── currency_formatter.dart
 │   ├── date_formatter.dart
+│   ├── date_helper.dart
 │   ├── extract_proventos.dart
 │   ├── fix_database.dart
 │   ├── fix_database_final.dart
@@ -70,5 +85,12 @@ lib/
 │   ├── primary_card.dart
 │   └── skeleton_loader.dart
 │
-└── models/
-    └── notification_model.dart
+└── constants/
+    ├── app_animations.dart
+    ├── app_colors.dart
+    ├── app_pages.dart
+    ├── app_routes.dart
+    ├── app_sizes.dart
+    ├── app_strings.dart
+    ├── app_text_styles.dart
+    └── app_themes.dart

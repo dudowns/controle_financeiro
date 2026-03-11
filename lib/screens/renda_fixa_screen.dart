@@ -1,11 +1,13 @@
 // lib/screens/renda_fixa_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/db_helper.dart';
+import '../repositories/renda_fixa_repository.dart'; // 🔥 NOVO
 import '../models/renda_fixa_model.dart';
 import '../services/renda_fixa_diaria.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/date_formatter.dart';
+import '../utils/date_helper.dart'; // 🔥 NOVO
 import 'novo_investimento_dialog.dart';
 import 'detalhes_renda_fixa.dart';
 
@@ -17,7 +19,9 @@ class RendaFixaScreen extends StatefulWidget {
 }
 
 class _RendaFixaScreenState extends State<RendaFixaScreen> {
-  final DBHelper _db = DBHelper();
+  // 🔥 Usar repositório
+  final RendaFixaRepository _repository = RendaFixaRepository();
+
   List<RendaFixaModel> _investimentos = [];
   bool _carregando = true;
   String _mensagemStatus = '';
@@ -35,21 +39,7 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
     });
 
     try {
-      await _db.database;
-
-      final dados = await _db.getAllRendaFixa();
-      _investimentos = dados
-          .map((json) {
-            try {
-              return RendaFixaModel.fromJson(json);
-            } catch (e) {
-              debugPrint('❌ Erro ao converter renda fixa: $e');
-              return null;
-            }
-          })
-          .whereType<RendaFixaModel>()
-          .toList();
-
+      _investimentos = await _repository.getAll();
       _mensagemStatus = 'Carregados ${_investimentos.length} investimentos';
     } catch (e) {
       _mensagemStatus = 'Erro: $e';
@@ -61,7 +51,7 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
 
   Future<void> _salvarInvestimento(RendaFixaModel investimento) async {
     try {
-      await _db.insertRendaFixa(investimento.toJson());
+      await _repository.insert(investimento);
       await _carregarDados();
 
       if (mounted) {
@@ -84,7 +74,6 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
     }
   }
 
-  // 🔥 SWITCHES SEM DEFAULT - TODOS OS CASOS COBERTOS!
   Color _getCorTipo(TipoRendaFixa tipo) {
     switch (tipo) {
       case TipoRendaFixa.cdb:
@@ -189,8 +178,10 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
                   itemCount: _investimentos.length,
                   itemBuilder: (context, index) {
                     final inv = _investimentos[index];
+                    final hoje =
+                        DateHelper.agoraBrasilia(); // 🔥 Usar DateHelper
                     final valorHoje =
-                        RendaFixaDiaria.calcularValorEm(inv, DateTime.now());
+                        RendaFixaDiaria.calcularValorEm(inv, hoje);
                     final rendimento = valorHoje - inv.valorAplicado;
 
                     return Card(

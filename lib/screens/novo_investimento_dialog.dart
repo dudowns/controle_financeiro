@@ -1,9 +1,11 @@
 // lib/screens/novo_investimento_dialog.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/renda_fixa_model.dart';
 import '../services/renda_fixa_diaria.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/date_helper.dart'; // 🔥 NOVO
 
 class NovoInvestimentoDialog extends StatefulWidget {
   final Function(RendaFixaModel) onSalvar;
@@ -27,6 +29,8 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
   late DateTime _dataVencimento;
   late bool _liquidezDiaria;
 
+  bool _salvando = false; // 🔥 NOVO
+
   Map<String, double>? _resultado;
 
   @override
@@ -34,8 +38,8 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
     super.initState();
     _tipoSelecionado = TipoRendaFixa.cdb;
     _indexadorSelecionado = Indexador.posFixadoCDI;
-    _dataAplicacao = DateTime.now();
-    _dataVencimento = DateTime.now().add(const Duration(days: 365));
+    _dataAplicacao = DateHelper.agoraBrasilia(); // 🔥 Usar DateHelper
+    _dataVencimento = DateHelper.agoraBrasilia().add(const Duration(days: 365));
     _liquidezDiaria = false;
   }
 
@@ -88,6 +92,7 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
               // Campo Nome
               TextFormField(
                 controller: _nomeController,
+                enabled: !_salvando,
                 decoration: const InputDecoration(
                   labelText: 'Nome do Investimento',
                   hintText: 'Ex: CDB Banco X',
@@ -122,19 +127,21 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
                       value: TipoRendaFixa.tesouroSelic,
                       child: Text('Tesouro Selic')),
                 ],
-                onChanged: (v) {
-                  setState(() {
-                    _tipoSelecionado = v!;
-                    if (v == TipoRendaFixa.tesouroPrefixado) {
-                      _indexadorSelecionado = Indexador.preFixado;
-                    } else if (v == TipoRendaFixa.tesouroIPCA) {
-                      _indexadorSelecionado = Indexador.ipca;
-                    } else if (v == TipoRendaFixa.tesouroSelic) {
-                      _indexadorSelecionado = Indexador.posFixadoCDI;
-                    }
-                  });
-                  _calcularSimulacao();
-                },
+                onChanged: _salvando
+                    ? null
+                    : (v) {
+                        setState(() {
+                          _tipoSelecionado = v!;
+                          if (v == TipoRendaFixa.tesouroPrefixado) {
+                            _indexadorSelecionado = Indexador.preFixado;
+                          } else if (v == TipoRendaFixa.tesouroIPCA) {
+                            _indexadorSelecionado = Indexador.ipca;
+                          } else if (v == TipoRendaFixa.tesouroSelic) {
+                            _indexadorSelecionado = Indexador.posFixadoCDI;
+                          }
+                        });
+                        _calcularSimulacao();
+                      },
               ),
               const SizedBox(height: 12),
 
@@ -156,10 +163,12 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
                     DropdownMenuItem(
                         value: Indexador.ipca, child: Text('IPCA+')),
                   ],
-                  onChanged: (v) {
-                    setState(() => _indexadorSelecionado = v!);
-                    _calcularSimulacao();
-                  },
+                  onChanged: _salvando
+                      ? null
+                      : (v) {
+                          setState(() => _indexadorSelecionado = v!);
+                          _calcularSimulacao();
+                        },
                 ),
                 const SizedBox(height: 12),
               ],
@@ -167,6 +176,7 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
               // Campo Valor Aplicado
               TextFormField(
                 controller: _valorController,
+                enabled: !_salvando,
                 decoration: const InputDecoration(
                   labelText: 'Valor Aplicado (R\$)',
                   hintText: '1.000,00',
@@ -183,6 +193,7 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
               // Campo Taxa
               TextFormField(
                 controller: _taxaController,
+                enabled: !_salvando,
                 decoration: InputDecoration(
                   labelText: _getTaxaLabel(),
                   hintText: _getTaxaHint(),
@@ -200,9 +211,12 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
               CheckboxListTile(
                 title: const Text('Liquidez Diária'),
                 value: _liquidezDiaria,
-                onChanged: (v) {
-                  setState(() => _liquidezDiaria = v ?? false);
-                },
+                onChanged: _salvando
+                    ? null
+                    : (v) {
+                        setState(() => _liquidezDiaria = v ?? false);
+                        _calcularSimulacao();
+                      },
                 contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 12),
@@ -215,14 +229,14 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
                           _buildDataField('Aplicação', _dataAplicacao, (date) {
                     setState(() => _dataAplicacao = date);
                     _calcularSimulacao();
-                  })),
+                  }, _salvando)),
                   const SizedBox(width: 8),
                   Expanded(
                       child: _buildDataField('Vencimento', _dataVencimento,
                           (date) {
                     setState(() => _dataVencimento = date);
                     _calcularSimulacao();
-                  })),
+                  }, _salvando)),
                 ],
               ),
 
@@ -276,37 +290,61 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _salvando ? null : () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate() && _resultado != null) {
-              final investimento = RendaFixaModel(
-                nome: _nomeController.text,
-                tipo: _tipoSelecionado,
-                indexador: _indexadorSelecionado,
-                valorAplicado:
-                    double.parse(_valorController.text.replaceAll(',', '.')),
-                taxa: double.parse(_taxaController.text.replaceAll(',', '.')),
-                dataAplicacao: _dataAplicacao,
-                dataVencimento: _dataVencimento,
-                liquidezDiaria: _liquidezDiaria,
-                // 🔥 observacao REMOVIDO - não existe no banco
-                rendimentoBruto: _resultado!['rendimento'],
-                valorFinal: _resultado!['valorFinal'],
-              );
-              widget.onSalvar(investimento);
-              Navigator.pop(context);
-            }
-          },
+          onPressed: _salvando ? null : _salvar,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF6A1B9A),
           ),
-          child: const Text('Aplicar'),
+          child: _salvando
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Text('Aplicar'),
         ),
       ],
     );
+  }
+
+  Future<void> _salvar() async {
+    if (_formKey.currentState!.validate() && _resultado != null) {
+      setState(() => _salvando = true);
+
+      try {
+        final investimento = RendaFixaModel(
+          nome: _nomeController.text,
+          tipo: _tipoSelecionado,
+          indexador: _indexadorSelecionado,
+          valorAplicado:
+              double.parse(_valorController.text.replaceAll(',', '.')),
+          taxa: double.parse(_taxaController.text.replaceAll(',', '.')),
+          dataAplicacao: _dataAplicacao,
+          dataVencimento: _dataVencimento,
+          liquidezDiaria: _liquidezDiaria,
+          rendimentoBruto: _resultado!['rendimento'],
+          valorFinal: _resultado!['valorFinal'],
+        );
+
+        widget.onSalvar(investimento);
+        Navigator.pop(context);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        setState(() => _salvando = false);
+      }
+    }
   }
 
   String _getTaxaLabel() {
@@ -343,23 +381,26 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
   }
 
   Widget _buildDataField(
-      String label, DateTime date, Function(DateTime) onSelect) {
+      String label, DateTime date, Function(DateTime) onSelect, bool salvando) {
     return InkWell(
-      onTap: () async {
-        final newDate = await showDatePicker(
-          context: context,
-          initialDate: date,
-          firstDate: DateTime(2020),
-          lastDate: DateTime(2040),
-          locale: const Locale('pt', 'BR'),
-        );
-        if (newDate != null) onSelect(newDate);
-      },
+      onTap: salvando
+          ? null
+          : () async {
+              final newDate = await showDatePicker(
+                context: context,
+                initialDate: date,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2040),
+                locale: const Locale('pt', 'BR'),
+              );
+              if (newDate != null) onSelect(newDate);
+            },
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           border: Border.all(color: Colors.grey[400]!),
           borderRadius: BorderRadius.circular(8),
+          color: salvando ? Colors.grey[100] : Colors.white,
         ),
         child: Column(
           children: [

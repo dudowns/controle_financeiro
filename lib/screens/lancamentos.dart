@@ -1,7 +1,10 @@
 // lib/screens/lancamentos.dart
+
 import 'package:flutter/material.dart';
-import '../database/db_helper.dart';
 import 'package:intl/intl.dart';
+import '../database/db_helper.dart';
+import '../repositories/lancamento_repository.dart'; // NOVO: import do repositório
+import '../models/lancamento_model.dart'; // NOVO: import do modelo
 import 'nova_transacao.dart';
 import 'editar_transacao.dart';
 import '../constants/app_colors.dart';
@@ -31,9 +34,14 @@ class LancamentosScreen extends StatefulWidget {
 
 class _LancamentosScreenState extends State<LancamentosScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
-  final DBHelper db = DBHelper();
+  // 🔥 MUDANÇA 1: Usar o repositório
+  final LancamentoRepository _lancamentoRepo = LancamentoRepository();
+
   List<Map<String, dynamic>> lancamentos = [];
   List<Map<String, dynamic>>? _lancamentosFiltradosCache;
+
+  Map<String, dynamic>? _resumoMes; // 🔥 NOVO: cache do resumo do mês
+
   bool carregando = true;
   bool _primeiraCarga = true;
   bool _temMaisItens = true;
@@ -92,6 +100,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     }
   }
 
+  // 🔥 MUDANÇA 2: Carregar lançamentos usando o repositório
   Future<void> _carregarLancamentos() async {
     if (!mounted) return;
 
@@ -103,9 +112,12 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     });
 
     try {
-      lancamentos = await db.getAllLancamentos();
+      lancamentos = await _lancamentoRepo.getAllLancamentos();
       _lancamentosFiltradosCache = null;
       _temMaisItens = lancamentos.length >= 20;
+
+      // 🔥 NOVO: Carregar resumo do mês atual
+      await _carregarResumoMes();
 
       PerformanceService.stop('carregarLancamentos');
     } catch (e) {
@@ -120,11 +132,20 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     }
   }
 
+  // 🔥 NOVO: Carregar resumo do mês
+  Future<void> _carregarResumoMes() async {
+    try {
+      _resumoMes = await _lancamentoRepo.getResumoDoMes(DateTime.now());
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar resumo do mês: $e');
+    }
+  }
+
   Future<void> _carregarMaisLancamentos() async {
     if (!_temMaisItens || carregando || !mounted) return;
 
     try {
-      final maisLancamentos = await db.getLancamentosPaginados(
+      final maisLancamentos = await _lancamentoRepo.getLancamentosPaginados(
         pagina: _paginaAtual + 1,
         tipo: filtroTipo != 'Todos' ? filtroTipo : null,
         categoria: filtroCategoria != 'Todas' ? filtroCategoria : null,
@@ -323,7 +344,13 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     );
   }
 
+  // 🔥 MUDANÇA 3: Card de resumo usando dados do repositório
   Widget _buildResumoCard() {
+    // Se tiver resumo do mês, usar ele, senão calcular dos filtrados
+    final receitas = _resumoMes?['receitas'] ?? _totalReceitas;
+    final despesas = _resumoMes?['despesas'] ?? _totalDespesas;
+    final saldo = _resumoMes?['saldo'] ?? _saldo;
+
     return Container(
       margin: const EdgeInsets.all(AppSizes.paddingL),
       padding: const EdgeInsets.all(AppSizes.paddingXL),
@@ -342,12 +369,12 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Saldo',
+                    'Saldo do Mês',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
                   AnimatedCounter(
-                    value: _saldo,
+                    value: saldo,
                     formatter: CurrencyFormatter.format,
                     style: AppTextStyles.moneyMedium,
                   ),
@@ -363,7 +390,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                   borderRadius: BorderRadius.circular(AppSizes.radiusXL),
                 ),
                 child: Text(
-                  '${_lancamentosFiltrados.length} itens',
+                  DateFormatter.formatMonth(DateTime.now()),
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
@@ -375,7 +402,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
               Expanded(
                 child: _buildResumoItem(
                   'Receitas',
-                  _totalReceitas,
+                  receitas,
                   Icons.arrow_upward,
                   Colors.green,
                 ),
@@ -384,7 +411,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
               Expanded(
                 child: _buildResumoItem(
                   'Despesas',
-                  _totalDespesas,
+                  despesas,
                   Icons.arrow_downward,
                   Colors.red,
                 ),
@@ -477,7 +504,10 @@ class _LancamentosScreenState extends State<LancamentosScreen>
           );
         }
         final item = _lancamentosFiltrados[index];
-        return _LancamentoCard(item: item, onRefresh: _carregarLancamentos);
+        return _LancamentoCard(
+          item: item,
+          onRefresh: _carregarLancamentos,
+        );
       },
     );
   }

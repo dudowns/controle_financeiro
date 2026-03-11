@@ -1,10 +1,12 @@
+// lib/screens/detalhes_ativo.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/yahoo_finance_service.dart';
 import '../database/db_helper.dart';
-import 'editar_investimento.dart'; // 🔥 IMPORTANTE!
-import 'grafico_ativo.dart'; // 🔥 IMPORTANTE!
-// Adicionar no início:
+import '../repositories/investimento_repository.dart'; // NOVO
+import 'editar_investimento.dart';
+import 'grafico_ativo.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
@@ -23,7 +25,8 @@ class DetalhesAtivoScreen extends StatefulWidget {
 
 class _DetalhesAtivoScreenState extends State<DetalhesAtivoScreen> {
   final YahooFinanceService _service = YahooFinanceService();
-  final DBHelper db = DBHelper();
+  final InvestimentoRepository _investimentoRepo =
+      InvestimentoRepository(); // NOVO
 
   Map<String, dynamic>? dadosYahoo;
   bool carregando = true;
@@ -435,7 +438,8 @@ class _DetalhesAtivoScreenState extends State<DetalhesAtivoScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await db.deleteInvestimento(widget.ativo['id']);
+              await _investimentoRepo.deleteInvestimento(
+                  widget.ativo['id']); // 🔥 Usando repositório
               if (context.mounted) {
                 Navigator.pop(context, true);
               }

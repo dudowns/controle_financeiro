@@ -1,8 +1,12 @@
 // lib/screens/analise_screen.dart
+
 import 'package:flutter/material.dart';
-import '../database/db_helper.dart';
 import 'package:intl/intl.dart';
-// Adicionar no início:
+import '../database/db_helper.dart';
+import '../repositories/investimento_repository.dart';
+import '../repositories/provento_repository.dart';
+import '../models/investimento_model.dart';
+import '../models/provento_model.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
@@ -20,10 +24,15 @@ class AnaliseScreen extends StatefulWidget {
 }
 
 class _AnaliseScreenState extends State<AnaliseScreen> {
-  final DBHelper db = DBHelper();
-  List<Map<String, dynamic>> investimentos = [];
-  List<Map<String, dynamic>> proventos = [];
+  // Repositórios
+  final InvestimentoRepository _investimentoRepo = InvestimentoRepository();
+  final ProventoRepository _proventoRepo = ProventoRepository();
+
+  // Dados
+  List<Investimento> investimentos = [];
+  List<Provento> proventos = [];
   List<Map<String, dynamic>> rendaFixa = [];
+
   bool carregando = true;
 
   // Filtros
@@ -59,17 +68,18 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
     setState(() => carregando = true);
 
     try {
-      investimentos = await db.getAllInvestimentos();
-      proventos = await db.getAllProventos();
-      rendaFixa = await db.getAllRendaFixa();
+      // Carregar dados dos repositórios
+      investimentos = await _investimentoRepo.getAllInvestimentosModel();
+      proventos = await _proventoRepo.getAll();
+      rendaFixa = await DBHelper().getAllRendaFixa();
 
       _processarDadosReais();
 
       // Atualiza lista de ativos para filtro
       ativosList = ['TODOS'];
       for (var inv in investimentos) {
-        if (!ativosList.contains(inv['ticker'])) {
-          ativosList.add(inv['ticker']);
+        if (!ativosList.contains(inv.ticker)) {
+          ativosList.add(inv.ticker);
         }
       }
 
@@ -88,9 +98,9 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
     // Processar proventos de ações/FIIs
     for (var p in proventos) {
       try {
-        final data = DateTime.parse(p['data_pagamento']);
-        final valor = (p['total_recebido'] ?? 0).toDouble();
-        final ticker = p['ticker'] ?? '';
+        final data = p.dataPagamento;
+        final valor = p.totalRecebido;
+        final ticker = p.ticker;
 
         final chaveMes = DateFormat('MM/yyyy').format(data);
         proventosPorMes[chaveMes] = (proventosPorMes[chaveMes] ?? 0) + valor;
@@ -133,7 +143,7 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
     double total = 0;
 
     for (var inv in investimentos) {
-      total += inv['quantidade'] * (inv['preco_atual'] ?? inv['preco_medio']);
+      total += inv.valorAtual;
     }
 
     for (var rf in rendaFixa) {
@@ -147,7 +157,7 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
     double total = 0;
 
     for (var inv in investimentos) {
-      total += inv['quantidade'] * inv['preco_medio'];
+      total += inv.valorInvestido;
     }
 
     for (var rf in rendaFixa) {
@@ -167,11 +177,9 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
 
     // Investimentos variáveis
     for (var inv in investimentos) {
-      final tipo = inv['tipo'] ?? 'OUTROS';
+      final tipo = inv.tipo.nome;
       if (!(categoriasVisiveis[tipo] ?? true)) continue;
-      final valor =
-          inv['quantidade'] * (inv['preco_atual'] ?? inv['preco_medio']);
-      valores[tipo] = (valores[tipo] ?? 0) + valor;
+      valores[tipo] = (valores[tipo] ?? 0) + inv.valorAtual;
     }
 
     // Renda Fixa
@@ -196,12 +204,12 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
   }
 
   // ========== DADOS POR CATEGORIA ==========
-  Map<String, List<Map<String, dynamic>>> get investimentosPorTipo {
-    final Map<String, List<Map<String, dynamic>>> agrupado = {};
+  Map<String, List<dynamic>> get investimentosPorTipo {
+    final Map<String, List<dynamic>> agrupado = {};
 
     // Investimentos variáveis
     for (var inv in investimentos) {
-      final tipo = inv['tipo'] ?? 'OUTROS';
+      final tipo = inv.tipo.nome;
       if (!(categoriasVisiveis[tipo] ?? true)) continue;
       if (!agrupado.containsKey(tipo)) {
         agrupado[tipo] = [];
@@ -236,9 +244,8 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
 
     for (var p in proventos) {
       try {
-        final data = DateTime.parse(p['data_pagamento']);
-        if (data.isAfter(umAnoAtras)) {
-          total += (p['total_recebido'] ?? 0).toDouble();
+        if (p.dataPagamento.isAfter(umAnoAtras)) {
+          total += p.totalRecebido;
         }
       } catch (e) {}
     }
@@ -252,9 +259,9 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
 
     for (var p in proventos) {
       try {
-        final data = DateTime.parse(p['data_pagamento']);
-        if (data.month == hoje.month && data.year == hoje.year) {
-          total += (p['total_recebido'] ?? 0).toDouble();
+        if (p.dataPagamento.month == hoje.month &&
+            p.dataPagamento.year == hoje.year) {
+          total += p.totalRecebido;
         }
       } catch (e) {}
     }
@@ -501,15 +508,12 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-
-          // Gráfico de barras simples
           SizedBox(
             height: 100,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: ultimos6.map((entry) {
                 final valor = entry.value;
-                // 🔥 ALTURA DEFINIDA AQUI!
                 final double altura =
                     valor > 0 ? (valor / 100).clamp(20, 80) : 20;
 
@@ -517,7 +521,7 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
                   children: [
                     Container(
                       width: 20,
-                      height: altura, // ✅ AGORA FUNCIONA!
+                      height: altura,
                       decoration: BoxDecoration(
                         color: const Color(0xFF6A1B9A).withOpacity(0.5),
                         borderRadius: BorderRadius.circular(4),
@@ -584,14 +588,18 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
     );
   }
 
-  Widget _buildCategoriaTile(
-      String categoria, List<Map<String, dynamic>> ativos) {
+  Widget _buildCategoriaTile(String categoria, List<dynamic> ativos) {
     final formatador = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-    double totalCategoria = ativos.fold(0, (sum, inv) {
-      return sum +
-          (inv['quantidade'] * (inv['preco_atual'] ?? inv['preco_medio']));
-    });
+    double totalCategoria = 0;
+
+    for (var item in ativos) {
+      if (item is Investimento) {
+        totalCategoria += item.valorAtual;
+      } else if (item is Map<String, dynamic>) {
+        totalCategoria += (item['preco_atual'] ?? item['preco_medio']) * 1;
+      }
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -641,78 +649,142 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
           ),
           children: [
             const Divider(height: 1),
-            ...ativos.map((inv) => _buildAtivoTile(inv)),
+            ...ativos.map((item) => _buildAtivoTile(item)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAtivoTile(Map<String, dynamic> inv) {
+  Widget _buildAtivoTile(dynamic item) {
     final formatador = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-    final quantidade = inv['quantidade'] ?? 1;
-    final precoMedio = inv['preco_medio'] ?? 0;
-    final precoAtual = inv['preco_atual'] ?? precoMedio;
-    final valorAtual = quantidade * precoAtual;
-    final variacao =
-        precoMedio > 0 ? ((precoAtual - precoMedio) / precoMedio) * 100 : 0;
+    if (item is Investimento) {
+      final variacao = item.variacaoPercentual;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                inv['ticker'] ?? inv['nome'] ?? 'Ativo',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                formatador.format(valorAtual),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Qnt: ${quantidade.toStringAsFixed(0)} | PM: R\$ ${precoMedio.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-              ),
-              Text(
-                'Atual: R\$ ${precoAtual.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: variacao >= 0 ? Colors.green[50] : Colors.red[50],
-                  borderRadius: BorderRadius.circular(12),
+      return Container(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  item.ticker,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                child: Text(
-                  '${variacao >= 0 ? '+' : ''}${variacao.toStringAsFixed(2)}%',
-                  style: TextStyle(
-                    color: variacao >= 0 ? Colors.green[700] : Colors.red[700],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
+                Text(
+                  formatador.format(item.valorAtual),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Qnt: ${item.quantidade.toStringAsFixed(0)} | PM: R\$ ${item.precoMedio.toStringAsFixed(2)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+                Text(
+                  'Atual: R\$ ${(item.precoAtual ?? item.precoMedio).toStringAsFixed(2)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: variacao >= 0 ? Colors.green[50] : Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${variacao >= 0 ? '+' : ''}${variacao.toStringAsFixed(2)}%',
+                    style: TextStyle(
+                      color:
+                          variacao >= 0 ? Colors.green[700] : Colors.red[700],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+              ],
+            ),
+          ],
+        ),
+      );
+    } else if (item is Map<String, dynamic>) {
+      final precoMedio = (item['preco_medio'] ?? 0).toDouble();
+      final precoAtual = (item['preco_atual'] ?? precoMedio).toDouble();
+      final variacao =
+          precoMedio > 0 ? ((precoAtual - precoMedio) / precoMedio) * 100 : 0;
+
+      return Container(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  item['ticker'] ?? item['nome'] ?? 'Ativo',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  formatador.format(precoAtual),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Qnt: ${(item['quantidade'] ?? 1).toStringAsFixed(0)} | PM: R\$ ${precoMedio.toStringAsFixed(2)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+                Text(
+                  'Atual: R\$ ${precoAtual.toStringAsFixed(2)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: variacao >= 0 ? Colors.green[50] : Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${variacao >= 0 ? '+' : ''}${variacao.toStringAsFixed(2)}%',
+                    style: TextStyle(
+                      color:
+                          variacao >= 0 ? Colors.green[700] : Colors.red[700],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   Widget _buildProventosCard() {
