@@ -2,14 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../repositories/renda_fixa_repository.dart'; // 🔥 NOVO
+import '../repositories/renda_fixa_repository.dart';
 import '../models/renda_fixa_model.dart';
 import '../services/renda_fixa_diaria.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
-import '../utils/date_helper.dart'; // 🔥 NOVO
+import '../utils/currency_formatter.dart'; // ✅ OK!
+import '../utils/date_helper.dart';
 import 'novo_investimento_dialog.dart';
 import 'detalhes_renda_fixa.dart';
+import '../constants/app_colors.dart';
 
 class RendaFixaScreen extends StatefulWidget {
   const RendaFixaScreen({super.key});
@@ -19,7 +19,6 @@ class RendaFixaScreen extends StatefulWidget {
 }
 
 class _RendaFixaScreenState extends State<RendaFixaScreen> {
-  // 🔥 Usar repositório
   final RendaFixaRepository _repository = RendaFixaRepository();
 
   List<RendaFixaModel> _investimentos = [];
@@ -74,49 +73,40 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
     }
   }
 
-  Color _getCorTipo(TipoRendaFixa tipo) {
+  Color _getCorTipo(String tipo) {
     switch (tipo) {
-      case TipoRendaFixa.cdb:
+      case 'CDB':
         return Colors.blue;
-      case TipoRendaFixa.lci:
-      case TipoRendaFixa.lca:
+      case 'LCI':
+      case 'LCA':
         return Colors.green;
-      case TipoRendaFixa.tesouroPrefixado:
-      case TipoRendaFixa.tesouroSelic:
-      case TipoRendaFixa.tesouroIPCA:
+      case 'Tesouro Prefixado':
+      case 'Tesouro Selic':
+      case 'Tesouro IPCA+':
         return Colors.orange;
+      default:
+        return AppColors.primary;
     }
   }
 
-  IconData _getIconeTipo(TipoRendaFixa tipo) {
+  IconData _getIconeTipo(String tipo) {
     switch (tipo) {
-      case TipoRendaFixa.cdb:
+      case 'CDB':
         return Icons.account_balance;
-      case TipoRendaFixa.lci:
-      case TipoRendaFixa.lca:
+      case 'LCI':
+      case 'LCA':
         return Icons.apartment;
-      case TipoRendaFixa.tesouroPrefixado:
-      case TipoRendaFixa.tesouroSelic:
-      case TipoRendaFixa.tesouroIPCA:
+      case 'Tesouro Prefixado':
+      case 'Tesouro Selic':
+      case 'Tesouro IPCA+':
         return Icons.attach_money;
+      default:
+        return Icons.savings;
     }
   }
 
   String _getTipoDescricao(RendaFixaModel inv) {
-    switch (inv.tipo) {
-      case TipoRendaFixa.cdb:
-        return 'CDB';
-      case TipoRendaFixa.lci:
-        return 'LCI';
-      case TipoRendaFixa.lca:
-        return 'LCA';
-      case TipoRendaFixa.tesouroPrefixado:
-        return 'Tesouro Prefixado';
-      case TipoRendaFixa.tesouroSelic:
-        return 'Tesouro Selic';
-      case TipoRendaFixa.tesouroIPCA:
-        return 'Tesouro IPCA+';
-    }
+    return inv.tipoRenda;
   }
 
   @override
@@ -124,7 +114,7 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Renda Fixa'),
-        backgroundColor: const Color(0xFF6A1B9A),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -178,8 +168,7 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
                   itemCount: _investimentos.length,
                   itemBuilder: (context, index) {
                     final inv = _investimentos[index];
-                    final hoje =
-                        DateHelper.agoraBrasilia(); // 🔥 Usar DateHelper
+                    final hoje = DateHelper.agoraBrasilia();
                     final valorHoje =
                         RendaFixaDiaria.calcularValorEm(inv, hoje);
                     final rendimento = valorHoje - inv.valorAplicado;
@@ -194,12 +183,12 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
                         leading: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: _getCorTipo(inv.tipo).withOpacity(0.1),
+                            color: _getCorTipo(inv.tipoRenda).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
-                            _getIconeTipo(inv.tipo),
-                            color: _getCorTipo(inv.tipo),
+                            _getIconeTipo(inv.tipoRenda),
+                            color: _getCorTipo(inv.tipoRenda),
                           ),
                         ),
                         title: Text(
@@ -228,7 +217,7 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  CurrencyFormatter.format(rendimento),
+                                  CurrencyFormatter.format(rendimento), // ✅ OK!
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: rendimento >= 0
@@ -248,16 +237,16 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                CurrencyFormatter.format(valorHoje),
+                                CurrencyFormatter.format(valorHoje), // ✅ OK!
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
-                                  color: Color(0xFF6A1B9A),
+                                  color: AppColors.primary,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'aplicado ${CurrencyFormatter.format(inv.valorAplicado)}',
+                                'aplicado ${CurrencyFormatter.format(inv.valorAplicado)}', // ✅ OK!
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: Colors.grey[500],
@@ -280,7 +269,7 @@ class _RendaFixaScreenState extends State<RendaFixaScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF6A1B9A),
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.add),
         onPressed: () {
           showDialog(

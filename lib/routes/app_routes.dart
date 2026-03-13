@@ -7,7 +7,7 @@ class AppRoutes {
   static const String novaTransacao = '/nova-transacao';
   static const String investimentos = '/investimentos';
   static const String metas = '/metas';
-  static const String backup = '/backup'; // 🔥 Se quiser adicionar
-  static const String notificacoes = '/notificacoes'; // 🔥 Se quiser adicionar
-  static const String contasFixas = '/contas-fixas'; // 🔥 Se quiser adicionar
+  static const String contas = '/contas'; // 🔥 NOVO
+  static const String backup = '/backup';
+  static const String notificacoes = '/notificacoes';
 }

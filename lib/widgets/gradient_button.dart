@@ -1,3 +1,5 @@
+// lib/widgets/gradient_button.dart
+
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
@@ -26,8 +28,8 @@ class GradientButton extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            gradientStart ?? AppColors.primaryPurple,
-            gradientEnd ?? AppColors.secondaryPurple,
+            gradientStart ?? AppColors.primary, // 🔥 CORRIGIDO!
+            gradientEnd ?? AppColors.secondary, // 🔥 CORRIGIDO!
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -35,7 +37,8 @@ class GradientButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSizes.radiusL),
         boxShadow: [
           BoxShadow(
-            color: (gradientStart ?? AppColors.primaryPurple).withOpacity(0.3),
+            color: (gradientStart ?? AppColors.primary)
+                .withOpacity(0.3), // 🔥 CORRIGIDO!
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

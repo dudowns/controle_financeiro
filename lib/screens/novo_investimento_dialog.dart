@@ -1,16 +1,17 @@
 // lib/screens/novo_investimento_dialog.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../database/db_helper.dart';
 import '../models/renda_fixa_model.dart';
-import '../services/renda_fixa_diaria.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_helper.dart'; // 🔥 NOVO
+import '../constants/app_colors.dart';
+import '../constants/app_sizes.dart';
+import '../utils/formatters.dart';
+import '../widgets/gradient_button.dart';
 
 class NovoInvestimentoDialog extends StatefulWidget {
-  final Function(RendaFixaModel) onSalvar;
+  final Function(RendaFixaModel)? onSalvar;
 
-  const NovoInvestimentoDialog({super.key, required this.onSalvar});
+  const NovoInvestimentoDialog({super.key, this.onSalvar});
 
   @override
   State<NovoInvestimentoDialog> createState() => _NovoInvestimentoDialogState();
@@ -18,249 +19,420 @@ class NovoInvestimentoDialog extends StatefulWidget {
 
 class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _dbHelper = DBHelper();
 
   final _nomeController = TextEditingController();
   final _valorController = TextEditingController();
   final _taxaController = TextEditingController();
 
-  late TipoRendaFixa _tipoSelecionado;
-  late Indexador _indexadorSelecionado;
-  late DateTime _dataAplicacao;
-  late DateTime _dataVencimento;
-  late bool _liquidezDiaria;
+  DateTime _dataAplicacao = DateTime.now();
+  DateTime _dataVencimento = DateTime.now().add(const Duration(days: 365));
 
-  bool _salvando = false; // 🔥 NOVO
+  String _tipoRenda = 'CDB';
+  String _indexador = 'posFixadoCDI';
+  String _liquidez = 'Diária';
+  bool _isLCI = false;
 
-  Map<String, double>? _resultado;
+  final List<String> _tiposRenda = [
+    'CDB',
+    'LCI',
+    'LCA',
+    'Tesouro Direto',
+    'Debênture',
+    'CRI',
+    'CRA',
+    'Outros',
+  ];
+
+  final List<Map<String, dynamic>> _indexadores = const [
+    {'valor': 'preFixado', 'label': 'Prefixado'},
+    {'valor': 'posFixadoCDI', 'label': 'Pós-fixado (% CDI)'},
+    {'valor': 'ipca', 'label': 'IPCA+'},
+  ];
+
+  final List<String> _liquidezOpcoes = [
+    'Diária',
+    'D+30',
+    'D+60',
+    'D+90',
+    'No vencimento',
+  ];
+
+  double _valorFinal = 0;
+  double _rendimentoLiquido = 0;
+  double _iof = 0;
+  double _ir = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _tipoSelecionado = TipoRendaFixa.cdb;
-    _indexadorSelecionado = Indexador.posFixadoCDI;
-    _dataAplicacao = DateHelper.agoraBrasilia(); // 🔥 Usar DateHelper
-    _dataVencimento = DateHelper.agoraBrasilia().add(const Duration(days: 365));
-    _liquidezDiaria = false;
+  void dispose() {
+    _nomeController.dispose();
+    _valorController.dispose();
+    _taxaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selecionarDataAplicacao() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dataAplicacao,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) {
+      setState(() {
+        _dataAplicacao = picked;
+        _calcularSimulacao();
+      });
+    }
+  }
+
+  Future<void> _selecionarDataVencimento() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dataVencimento,
+      firstDate: _dataAplicacao,
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) {
+      setState(() {
+        _dataVencimento = picked;
+        _calcularSimulacao();
+      });
+    }
   }
 
   void _calcularSimulacao() {
-    if (_valorController.text.isEmpty || _taxaController.text.isEmpty) return;
+    final valor =
+        double.tryParse(_valorController.text.replaceAll(',', '.')) ?? 0;
+    final taxa =
+        double.tryParse(_taxaController.text.replaceAll(',', '.')) ?? 0;
+
+    if (valor <= 0 || taxa <= 0) return;
+
+    final dias = _dataVencimento.difference(_dataAplicacao).inDays;
+
+    double rendimentoBruto;
+
+    switch (_indexador) {
+      case 'preFixado':
+        rendimentoBruto = valor * (taxa / 100) * (dias / 365);
+        break;
+      case 'posFixadoCDI':
+        rendimentoBruto = valor * (taxa / 100) * (dias / 365) * 0.1365;
+        break;
+      case 'ipca':
+        rendimentoBruto = valor * (taxa / 100) * (dias / 365) * 0.045;
+        break;
+      default:
+        rendimentoBruto = valor * (taxa / 100) * (dias / 365);
+    }
+
+    double ir = 0;
+    if (!_isLCI) {
+      if (dias <= 180) {
+        ir = rendimentoBruto * 0.225;
+      } else if (dias <= 360) {
+        ir = rendimentoBruto * 0.20;
+      } else if (dias <= 720) {
+        ir = rendimentoBruto * 0.175;
+      } else {
+        ir = rendimentoBruto * 0.15;
+      }
+    }
+
+    double iof = 0;
+    if (dias < 30 && !_isLCI) {
+      iof = rendimentoBruto * (30 - dias) / 30 * 0.96;
+    }
+
+    setState(() {
+      _rendimentoLiquido = rendimentoBruto - iof - ir;
+      _valorFinal = valor + _rendimentoLiquido;
+      _iof = iof;
+      _ir = ir;
+    });
+  }
+
+  Future<void> _salvarInvestimento() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final valor =
+        double.tryParse(_valorController.text.replaceAll(',', '.')) ?? 0;
+    final taxa =
+        double.tryParse(_taxaController.text.replaceAll(',', '.')) ?? 0;
+    final dias = _dataVencimento.difference(_dataAplicacao).inDays;
+
+    // ✅ CONSTRUTOR CORRETO com todos os parâmetros
+    final investimento = RendaFixaModel(
+      id: null,
+      nome: _nomeController.text,
+      tipoRenda: _tipoRenda, // ← AGORA TEM ESTE PARÂMETRO!
+      valorAplicado: valor,
+      taxa: taxa,
+      dataAplicacao: _dataAplicacao,
+      dataVencimento: _dataVencimento,
+      diasUteis: dias,
+      rendimentoBruto: _rendimentoLiquido + _iof + _ir,
+      iof: _iof,
+      ir: _ir,
+      rendimentoLiquido: _rendimentoLiquido,
+      valorFinal: _valorFinal,
+      indexador: _getIndexadorEnum(),
+      liquidezDiaria: _liquidez == 'Diária',
+      isIsento: _isLCI,
+      status: 'ativo',
+    );
 
     try {
-      final valor = double.parse(_valorController.text.replaceAll(',', '.'));
-      final taxa = double.parse(_taxaController.text.replaceAll(',', '.'));
+      if (widget.onSalvar != null) {
+        await widget.onSalvar!(investimento);
+      } else {
+        await _dbHelper.insertRendaFixa(investimento.toJson());
+      }
 
-      final investimento = RendaFixaModel(
-        nome: _nomeController.text,
-        tipo: _tipoSelecionado,
-        indexador: _indexadorSelecionado,
-        valorAplicado: valor,
-        taxa: taxa,
-        dataAplicacao: _dataAplicacao,
-        dataVencimento: _dataVencimento,
-        liquidezDiaria: _liquidezDiaria,
-      );
-
-      final valorFinal =
-          RendaFixaDiaria.calcularValorEm(investimento, _dataVencimento);
-      final rendimento = valorFinal - valor;
-
-      setState(() {
-        _resultado = {
-          'valorFinal': valorFinal,
-          'rendimento': rendimento,
-        };
-      });
+      if (mounted) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Investimento adicionado!'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
-      setState(() {
-        _resultado = null;
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao salvar: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Indexador _getIndexadorEnum() {
+    switch (_indexador) {
+      case 'preFixado':
+        return Indexador.preFixado;
+      case 'posFixadoCDI':
+        return Indexador.posFixadoCDI;
+      case 'ipca':
+        return Indexador.ipca;
+      default:
+        return Indexador.preFixado;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Novo Investimento - Renda Fixa'),
+      title: const Text('Novo Investimento'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Campo Nome
               TextFormField(
                 controller: _nomeController,
-                enabled: !_salvando,
                 decoration: const InputDecoration(
                   labelText: 'Nome do Investimento',
-                  hintText: 'Ex: CDB Banco X',
+                  hintText: 'Ex: CDB Banco XYZ',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.title),
                 ),
-                validator: (v) =>
-                    v?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Campo obrigatório';
+                  }
+                  return null;
+                },
               ),
-              const SizedBox(height: 12),
-
-              // Campo Tipo
-              DropdownButtonFormField<TipoRendaFixa>(
-                value: _tipoSelecionado,
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _tipoRenda,
+                items: _tiposRenda.map<DropdownMenuItem<String>>((String tipo) {
+                  return DropdownMenuItem<String>(
+                    value: tipo,
+                    child: Text(tipo),
+                  );
+                }).toList(),
+                onChanged: (value) => setState(() => _tipoRenda = value!),
                 decoration: const InputDecoration(
-                  labelText: 'Tipo',
+                  labelText: 'Tipo de Renda',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category),
                 ),
-                items: [
-                  DropdownMenuItem(
-                      value: TipoRendaFixa.cdb, child: Text('CDB')),
-                  DropdownMenuItem(
-                      value: TipoRendaFixa.lci, child: Text('LCI')),
-                  DropdownMenuItem(
-                      value: TipoRendaFixa.lca, child: Text('LCA')),
-                  DropdownMenuItem(
-                      value: TipoRendaFixa.tesouroPrefixado,
-                      child: Text('Tesouro Prefixado')),
-                  DropdownMenuItem(
-                      value: TipoRendaFixa.tesouroIPCA,
-                      child: Text('Tesouro IPCA+')),
-                  DropdownMenuItem(
-                      value: TipoRendaFixa.tesouroSelic,
-                      child: Text('Tesouro Selic')),
-                ],
-                onChanged: _salvando
-                    ? null
-                    : (v) {
-                        setState(() {
-                          _tipoSelecionado = v!;
-                          if (v == TipoRendaFixa.tesouroPrefixado) {
-                            _indexadorSelecionado = Indexador.preFixado;
-                          } else if (v == TipoRendaFixa.tesouroIPCA) {
-                            _indexadorSelecionado = Indexador.ipca;
-                          } else if (v == TipoRendaFixa.tesouroSelic) {
-                            _indexadorSelecionado = Indexador.posFixadoCDI;
-                          }
-                        });
-                        _calcularSimulacao();
-                      },
               ),
-              const SizedBox(height: 12),
-
-              // Campo Indexador (se aplicável)
-              if (_tipoSelecionado == TipoRendaFixa.cdb ||
-                  _tipoSelecionado == TipoRendaFixa.lci ||
-                  _tipoSelecionado == TipoRendaFixa.lca) ...[
-                DropdownButtonFormField<Indexador>(
-                  value: _indexadorSelecionado,
-                  decoration: const InputDecoration(
-                    labelText: 'Indexador',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                        value: Indexador.preFixado, child: Text('Prefixado')),
-                    DropdownMenuItem(
-                        value: Indexador.posFixadoCDI, child: Text('% CDI')),
-                    DropdownMenuItem(
-                        value: Indexador.ipca, child: Text('IPCA+')),
-                  ],
-                  onChanged: _salvando
-                      ? null
-                      : (v) {
-                          setState(() => _indexadorSelecionado = v!);
-                          _calcularSimulacao();
-                        },
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Campo Valor Aplicado
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _valorController,
-                enabled: !_salvando,
                 decoration: const InputDecoration(
-                  labelText: 'Valor Aplicado (R\$)',
-                  hintText: '1.000,00',
+                  labelText: 'Valor Aplicado',
+                  hintText: '0,00',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.attach_money),
+                  prefixText: 'R\$ ',
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (_) => _calcularSimulacao(),
-                validator: (v) =>
-                    v?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Campo obrigatório';
+                  }
+                  final val = double.tryParse(value.replaceAll(',', '.'));
+                  if (val == null || val <= 0) {
+                    return 'Digite um valor válido';
+                  }
+                  return null;
+                },
               ),
-              const SizedBox(height: 12),
-
-              // Campo Taxa
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _taxaController,
-                enabled: !_salvando,
                 decoration: InputDecoration(
-                  labelText: _getTaxaLabel(),
-                  hintText: _getTaxaHint(),
-                  border: const OutlineInputBorder(),
-                  suffixText: _getTaxaSuffix(),
+                  labelText: _indexador == 'posFixadoCDI'
+                      ? 'Taxa (% do CDI)'
+                      : 'Taxa (% a.a.)',
+                  hintText: '0,00',
+                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.percent),
+                  suffixText: _indexador == 'posFixadoCDI' ? '% CDI' : '% a.a.',
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (_) => _calcularSimulacao(),
-                validator: (v) =>
-                    v?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Campo obrigatório';
+                  }
+                  final val = double.tryParse(value.replaceAll(',', '.'));
+                  if (val == null || val <= 0) {
+                    return 'Digite uma taxa válida';
+                  }
+                  return null;
+                },
               ),
-              const SizedBox(height: 12),
-
-              // Checkbox Liquidez Diária
-              CheckboxListTile(
-                title: const Text('Liquidez Diária'),
-                value: _liquidezDiaria,
-                onChanged: _salvando
-                    ? null
-                    : (v) {
-                        setState(() => _liquidezDiaria = v ?? false);
-                        _calcularSimulacao();
-                      },
-                contentPadding: EdgeInsets.zero,
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _indexador,
+                items: _indexadores
+                    .map<DropdownMenuItem<String>>((Map<String, dynamic> item) {
+                  return DropdownMenuItem<String>(
+                    value: item['valor'] as String,
+                    child: Text(item['label'] as String),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _indexador = value!;
+                    _calcularSimulacao();
+                  });
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Indexador',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.trending_up),
+                ),
               ),
-              const SizedBox(height: 12),
-
-              // Campos de Data
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
-                      child:
-                          _buildDataField('Aplicação', _dataAplicacao, (date) {
-                    setState(() => _dataAplicacao = date);
-                    _calcularSimulacao();
-                  }, _salvando)),
+                    child: TextButton.icon(
+                      onPressed: _selecionarDataAplicacao,
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text(
+                        'Aplic: ${Formatador.data(_dataAplicacao)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.grey[400]!),
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: _buildDataField('Vencimento', _dataVencimento,
-                          (date) {
-                    setState(() => _dataVencimento = date);
-                    _calcularSimulacao();
-                  }, _salvando)),
+                    child: TextButton.icon(
+                      onPressed: _selecionarDataVencimento,
+                      icon: const Icon(Icons.event),
+                      label: Text(
+                        'Venc: ${Formatador.data(_dataVencimento)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.grey[400]!),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-
-              // Resultado da simulação
-              if (_resultado != null) ...[
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _liquidez,
+                items: _liquidezOpcoes
+                    .map<DropdownMenuItem<String>>((String opcao) {
+                  return DropdownMenuItem<String>(
+                    value: opcao,
+                    child: Text(opcao),
+                  );
+                }).toList(),
+                onChanged: (value) => setState(() => _liquidez = value!),
+                decoration: const InputDecoration(
+                  labelText: 'Liquidez',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.water_drop),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Checkbox(
+                    value: _isLCI,
+                    onChanged: (value) {
+                      setState(() {
+                        _isLCI = value!;
+                        _calcularSimulacao();
+                      });
+                    },
+                    activeColor: AppColors.primary,
+                  ),
+                  const Text('Isento (LCI/LCA)'),
+                ],
+              ),
+              if (_valorFinal > 0) ...[
                 const Divider(height: 32),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: AppColors.primary.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: AppColors.primary.withOpacity(0.2)),
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Rendimento Projetado:'),
+                          const Text('Valor Final:'),
                           Text(
-                            CurrencyFormatter.format(
-                                _resultado!['rendimento']!),
+                            Formatador.moeda(_valorFinal),
                             style: const TextStyle(
-                              color: Colors.green,
                               fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
                             ),
                           ),
                         ],
@@ -269,17 +441,48 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Valor Final:'),
+                          const Text('Rend. Líquido:'),
                           Text(
-                            CurrencyFormatter.format(
-                                _resultado!['valorFinal']!),
+                            Formatador.moeda(_rendimentoLiquido),
                             style: const TextStyle(
+                              color: Colors.green,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF6A1B9A),
                             ),
                           ),
                         ],
                       ),
+                      if (_iof > 0) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('IOF:', style: TextStyle(fontSize: 12)),
+                            Text(
+                              Formatador.moeda(_iof),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (_ir > 0) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('IR:', style: TextStyle(fontSize: 12)),
+                            Text(
+                              Formatador.moeda(_ir),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -290,139 +493,14 @@ class _NovoInvestimentoDialogState extends State<NovoInvestimentoDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _salvando ? null : () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        ElevatedButton(
-          onPressed: _salvando ? null : _salvar,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF6A1B9A),
-          ),
-          child: _salvando
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : const Text('Aplicar'),
+        GradientButton(
+          text: 'Salvar',
+          onPressed: _salvarInvestimento,
         ),
       ],
     );
-  }
-
-  Future<void> _salvar() async {
-    if (_formKey.currentState!.validate() && _resultado != null) {
-      setState(() => _salvando = true);
-
-      try {
-        final investimento = RendaFixaModel(
-          nome: _nomeController.text,
-          tipo: _tipoSelecionado,
-          indexador: _indexadorSelecionado,
-          valorAplicado:
-              double.parse(_valorController.text.replaceAll(',', '.')),
-          taxa: double.parse(_taxaController.text.replaceAll(',', '.')),
-          dataAplicacao: _dataAplicacao,
-          dataVencimento: _dataVencimento,
-          liquidezDiaria: _liquidezDiaria,
-          rendimentoBruto: _resultado!['rendimento'],
-          valorFinal: _resultado!['valorFinal'],
-        );
-
-        widget.onSalvar(investimento);
-        Navigator.pop(context);
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } finally {
-        setState(() => _salvando = false);
-      }
-    }
-  }
-
-  String _getTaxaLabel() {
-    switch (_indexadorSelecionado) {
-      case Indexador.preFixado:
-        return 'Taxa Prefixada (% a.a.)';
-      case Indexador.posFixadoCDI:
-        return 'Percentual do CDI (%)';
-      case Indexador.ipca:
-        return 'Taxa Real (IPCA + X%)';
-    }
-  }
-
-  String _getTaxaHint() {
-    switch (_indexadorSelecionado) {
-      case Indexador.preFixado:
-        return '13,50';
-      case Indexador.posFixadoCDI:
-        return '110';
-      case Indexador.ipca:
-        return '6,50';
-    }
-  }
-
-  String _getTaxaSuffix() {
-    switch (_indexadorSelecionado) {
-      case Indexador.preFixado:
-        return '% a.a.';
-      case Indexador.posFixadoCDI:
-        return '% do CDI';
-      case Indexador.ipca:
-        return '%';
-    }
-  }
-
-  Widget _buildDataField(
-      String label, DateTime date, Function(DateTime) onSelect, bool salvando) {
-    return InkWell(
-      onTap: salvando
-          ? null
-          : () async {
-              final newDate = await showDatePicker(
-                context: context,
-                initialDate: date,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2040),
-                locale: const Locale('pt', 'BR'),
-              );
-              if (newDate != null) onSelect(newDate);
-            },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[400]!),
-          borderRadius: BorderRadius.circular(8),
-          color: salvando ? Colors.grey[100] : Colors.white,
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-            const SizedBox(height: 4),
-            Text(
-              DateFormat('dd/MM/yy').format(date),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(label,
-                style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _nomeController.dispose();
-    _valorController.dispose();
-    _taxaController.dispose();
-    super.dispose();
   }
 }

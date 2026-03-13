@@ -7,8 +7,7 @@ import '../repositories/meta_repository.dart'; // NOVO: import do repositório
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../utils/validators.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
+import '../utils/formatters.dart';
 import '../widgets/date_picker_field.dart';
 
 class NovaMetaScreen extends StatefulWidget {

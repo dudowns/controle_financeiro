@@ -1,4 +1,5 @@
 // lib/services/backup_service_plus.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -6,7 +7,6 @@ import 'package:flutter/material.dart';
 import '../database/db_helper.dart';
 import '../services/logger_service.dart';
 import '../utils/date_helper.dart';
-import '../models/conta_fixa_model.dart';
 
 class BackupServicePlus {
   static final BackupServicePlus _instance = BackupServicePlus._internal();
@@ -26,13 +26,8 @@ class BackupServicePlus {
       final metas = await db.getAllMetas();
       final rendaFixa = await db.getAllRendaFixa();
 
-      final contasFixas = await db.getAllContasFixas();
-      final Map<int, List<Map<String, dynamic>>> parcelasMap = {};
-
-      for (var conta in contasFixas) {
-        final parcelas = await db.getParcelasByContaId(conta['id']);
-        parcelasMap[conta['id']] = parcelas;
-      }
+      // 🔥 NOVO: Exportar contas do mês
+      final contas = await _exportarContasDoMes();
 
       final lancamentosLimpos = lancamentos.map((item) {
         return {
@@ -106,54 +101,62 @@ class BackupServicePlus {
         };
       }).toList();
 
-      final contasFixasLimpos = contasFixas.map((item) {
-        final parcelas = parcelasMap[item['id']] ?? [];
-        return {
-          'id': item['id'],
-          'nome': item['nome'],
-          'valor_total': item['valor_total'],
-          'total_parcelas': item['total_parcelas'],
-          'data_inicio': item['data_inicio'],
-          'categoria': item['categoria'],
-          'observacao': item['observacao'],
-          'parcelas': parcelas
-              .map((p) => {
-                    'numero': p['numero'],
-                    'data_vencimento': p['data_vencimento'],
-                    'status': p['status'],
-                    'data_pagamento': p['data_pagamento'],
-                    'valor_pago': p['valor_pago'],
-                  })
-              .toList(),
-        };
-      }).toList();
-
       final dados = {
         'metadata': {
-          'versao': '2.0',
+          'versao': '3.0', // 🔥 Versão atualizada
           'data_exportacao': DateHelper.agoraBrasilia().toIso8601String(),
           'total_lancamentos': lancamentos.length,
           'total_investimentos': investimentos.length,
           'total_proventos': proventos.length,
           'total_metas': metas.length,
           'total_renda_fixa': rendaFixa.length,
-          'total_contas_fixas': contasFixas.length,
+          'total_contas': contas.length, // 🔥 NOVO
         },
         'lancamentos': lancamentosLimpos,
         'investimentos': investimentosLimpos,
         'proventos': proventosLimpos,
         'metas': metasLimpos,
         'renda_fixa': rendaFixaLimpos,
-        'contas_fixas': contasFixasLimpos,
+        'contas': contas, // 🔥 NOVO: contas do mês
       };
 
       LoggerService.success(
-          '✅ Exportação concluída: ${lancamentos.length} lançamentos, ${contasFixas.length} contas fixas');
+          '✅ Exportação concluída: ${lancamentos.length} lançamentos, ${contas.length} contas');
       return dados;
     } catch (e) {
       LoggerService.error('❌ Erro ao exportar dados', e);
       rethrow;
     }
+  }
+
+  // 🔥 NOVO: Exportar contas do mês
+  Future<List<Map<String, dynamic>>> _exportarContasDoMes() async {
+    final database = await db.database;
+
+    // Buscar todas as contas ativas
+    final contas = await database.query(DBHelper.tabelaContas);
+
+    // Buscar todos os pagamentos
+    final pagamentos = await database.query(DBHelper.tabelaPagamentos);
+
+    // Mapear pagamentos por conta
+    final Map<int, List<Map<String, dynamic>>> pagamentosPorConta = {};
+    for (var p in pagamentos) {
+      final contaId = p['conta_id'] as int;
+      if (!pagamentosPorConta.containsKey(contaId)) {
+        pagamentosPorConta[contaId] = [];
+      }
+      pagamentosPorConta[contaId]!.add(p);
+    }
+
+    // Adicionar pagamentos às contas
+    return contas.map((conta) {
+      final contaId = conta['id'] as int;
+      return {
+        ...conta,
+        'pagamentos': pagamentosPorConta[contaId] ?? [],
+      };
+    }).toList();
   }
 
   // ========== SALVAR BACKUP EM ARQUIVO ==========
@@ -209,6 +212,7 @@ class BackupServicePlus {
 
       int totalInserido = 0;
 
+      // Restaurar lançamentos
       if (dados['lancamentos'] != null) {
         for (var item in dados['lancamentos']) {
           try {
@@ -220,6 +224,7 @@ class BackupServicePlus {
         }
       }
 
+      // Restaurar investimentos
       if (dados['investimentos'] != null) {
         for (var item in dados['investimentos']) {
           try {
@@ -231,6 +236,7 @@ class BackupServicePlus {
         }
       }
 
+      // Restaurar proventos
       if (dados['proventos'] != null) {
         for (var item in dados['proventos']) {
           try {
@@ -242,6 +248,7 @@ class BackupServicePlus {
         }
       }
 
+      // Restaurar metas
       if (dados['metas'] != null) {
         for (var item in dados['metas']) {
           try {
@@ -253,6 +260,7 @@ class BackupServicePlus {
         }
       }
 
+      // Restaurar renda fixa
       if (dados['renda_fixa'] != null) {
         for (var item in dados['renda_fixa']) {
           try {
@@ -264,35 +272,35 @@ class BackupServicePlus {
         }
       }
 
-      if (dados['contas_fixas'] != null) {
-        for (var item in dados['contas_fixas']) {
+      // 🔥 NOVO: Restaurar contas do mês
+      if (dados['contas'] != null) {
+        for (var item in dados['contas']) {
           try {
-            final parcelas = (item['parcelas'] as List)
-                .map((p) => Parcela(
-                      numero: p['numero'],
-                      dataVencimento: DateTime.parse(p['data_vencimento']),
-                      status: StatusParcela.values[p['status']],
-                      dataPagamento: p['data_pagamento'] != null
-                          ? DateTime.parse(p['data_pagamento'])
-                          : null,
-                      valorPago: p['valor_pago']?.toDouble(),
-                    ))
-                .toList();
+            // Separar pagamentos da conta
+            final pagamentos = item['pagamentos'] as List? ?? [];
 
-            final conta = ContaFixa(
-              nome: item['nome'],
-              valorTotal: item['valor_total'].toDouble(),
-              totalParcelas: item['total_parcelas'],
-              dataInicio: DateTime.parse(item['data_inicio']),
-              categoria: item['categoria'],
-              observacao: item['observacao'],
-              parcelas: parcelas,
-            );
+            // Criar mapa da conta sem os pagamentos
+            final conta = Map<String, dynamic>.from(item);
+            conta.remove('pagamentos');
+            conta.remove('id'); // Deixa o banco gerar novo ID
 
-            await db.insertContaFixa(conta);
+            // Inserir conta
+            final contaId = await db.adicionarConta(conta);
+
+            // Reinserir pagamentos se houver
+            if (contaId > 0 && pagamentos.isNotEmpty) {
+              final database = await db.database;
+              for (var p in pagamentos) {
+                final pagamento = Map<String, dynamic>.from(p);
+                pagamento.remove('id');
+                pagamento['conta_id'] = contaId;
+                await database.insert(DBHelper.tabelaPagamentos, pagamento);
+              }
+            }
+
             totalInserido++;
           } catch (e) {
-            LoggerService.error('Erro ao inserir conta fixa', e);
+            LoggerService.error('Erro ao inserir conta', e);
           }
         }
       }
@@ -336,10 +344,13 @@ class BackupServicePlus {
 
       await database.execute('PRAGMA foreign_keys = OFF');
 
+      // 🔥 NOVA ORDEM: respeitar foreign keys
       final tabelas = [
+        DBHelper.tabelaPagamentos, // Primeiro as que têm foreign key
         DBHelper.tabelaParcelas,
-        DBHelper.tabelaContasFixas,
         DBHelper.tabelaDepositosMeta,
+        DBHelper.tabelaContas, // Depois as tabelas principais
+        DBHelper.tabelaContasFixas,
         DBHelper.tabelaProventos,
         DBHelper.tabelaRendaFixa,
         DBHelper.tabelaInvestimentos,

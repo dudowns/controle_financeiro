@@ -137,7 +137,7 @@ class _AdicionarInvestimentoScreenState
           SnackBar(
             content:
                 Text('✅ ${_tickerController.text.toUpperCase()} adicionado!'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -157,7 +157,7 @@ class _AdicionarInvestimentoScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensagem),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }
@@ -167,7 +167,7 @@ class _AdicionarInvestimentoScreenState
     return Scaffold(
       appBar: AppBar(
         title: const Text('Adicionar Investimento'),
-        backgroundColor: AppColors.primaryPurple,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: Stack(
@@ -182,8 +182,6 @@ class _AdicionarInvestimentoScreenState
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppSizes.paddingL),
-
-                // Ticker
                 TextField(
                   controller: _tickerController,
                   enabled: !_salvando,
@@ -204,8 +202,6 @@ class _AdicionarInvestimentoScreenState
                   },
                 ),
                 const SizedBox(height: AppSizes.paddingL),
-
-                // Tipo
                 DropdownButtonFormField<String>(
                   value: _tipoSelecionado,
                   decoration: InputDecoration(
@@ -250,8 +246,6 @@ class _AdicionarInvestimentoScreenState
                         },
                 ),
                 const SizedBox(height: AppSizes.paddingL),
-
-                // Quantidade
                 TextField(
                   controller: _quantidadeController,
                   enabled: !_salvando,
@@ -271,8 +265,6 @@ class _AdicionarInvestimentoScreenState
                   },
                 ),
                 const SizedBox(height: AppSizes.paddingL),
-
-                // Preço
                 TextField(
                   controller: _precoController,
                   enabled: !_salvando,
@@ -293,8 +285,6 @@ class _AdicionarInvestimentoScreenState
                   },
                 ),
                 const SizedBox(height: AppSizes.paddingL),
-
-                // Data
                 InkWell(
                   onTap: _salvando ? null : _selecionarData,
                   child: Container(
@@ -309,8 +299,7 @@ class _AdicionarInvestimentoScreenState
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.calendar_today,
-                            color: AppColors.primaryPurple),
+                        Icon(Icons.calendar_today, color: AppColors.primary),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,20 +320,17 @@ class _AdicionarInvestimentoScreenState
                           ],
                         ),
                         const Spacer(),
-                        const Icon(Icons.arrow_drop_down,
-                            color: AppColors.primaryPurple),
+                        Icon(Icons.arrow_drop_down, color: AppColors.primary),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: AppSizes.paddingXL),
-
-                // ✅ BOTÃO CORRIGIDO!
                 GradientButton(
                   text: 'ADICIONAR INVESTIMENTO',
                   icon: Icons.add,
-                  onPressed: _salvar, // ← SEM condição!
-                  isLoading: _salvando, // ← O botão usa isso para desabilitar
+                  onPressed: _salvar,
+                  isLoading: _salvando,
                 ),
               ],
             ),

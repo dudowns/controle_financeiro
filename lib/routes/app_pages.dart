@@ -6,9 +6,9 @@ import '../screens/lancamentos.dart';
 import '../screens/nova_transacao.dart';
 import '../screens/investimentos_tabs.dart';
 import '../screens/metas_screen.dart';
-import '../screens/contas_fixas_screen.dart'; // 🔥 IMPORT ADICIONADO
-import '../screens/backup_screen.dart'; // 🔥 IMPORT ADICIONADO
-import '../screens/notificacoes_screen.dart'; // 🔥 IMPORT ADICIONADO
+import '../screens/contas_do_mes_screen.dart'; // 🔥 NOVO: Contas do Mês
+import '../screens/backup_screen.dart';
+import '../screens/notificacoes_screen.dart';
 import 'app_routes.dart';
 
 class AppPages {
@@ -19,13 +19,12 @@ class AppPages {
     AppRoutes.novaTransacao: (context) => const NovaTransacaoScreen(),
     AppRoutes.investimentos: (context) => const InvestimentosTabsScreen(),
     AppRoutes.metas: (context) => const MetasScreen(),
-    // 🔥 Rotas adicionais (opcionais)
-    AppRoutes.contasFixas: (context) => const ContasFixasScreen(),
+    // 🔥 NOVA ROTA - Contas do Mês
+    AppRoutes.contas: (context) => const ContasDoMesScreen(),
     AppRoutes.backup: (context) => const BackupScreen(),
     AppRoutes.notificacoes: (context) => const NotificacoesScreen(),
   };
 
-  // 🔥 Método para navegação com parâmetros (se precisar)
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.novaTransacao:

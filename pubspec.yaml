@@ -1,5 +1,5 @@
 name: deepseek
-description: A new Flutter project.
+description: Controle Financeiro - App Turbinado 🚀
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -10,20 +10,26 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # 🔥 LOCALIZAÇÕES
+  # 🔥 LOCALIZAÇÕES (ESSENCIAL!)
   flutter_localizations:
     sdk: flutter
-    
-  # ========== DATABASE ==========
+  intl: ^0.20.2
+  
+  # ========== BANCO DE DADOS ==========
   sqflite: ^2.3.0
-  sqflite_common_ffi: ^2.3.0
+  sqflite_common_ffi: ^2.3.0  # Para Windows
   path: ^1.8.0
   path_provider: ^2.1.0
   
-  # ========== UI E FORMATAÇÃO ==========
-  intl: ^0.20.2
+  # ========== UI E ANIMAÇÕES ==========
+  animate_do: ^3.3.4
+  flutter_staggered_animations: ^1.1.0
+  glassmorphism: ^3.0.0
+  shimmer: ^3.0.0
+  
+  # ========== GRÁFICOS ==========
   fl_chart: ^0.66.0
-  syncfusion_flutter_charts: ^32.2.8  # 🔥 ATUALIZADO!
+  syncfusion_flutter_charts: ^32.2.8
   
   # ========== NOTIFICAÇÕES ==========
   flutter_local_notifications: ^17.2.0
@@ -43,18 +49,44 @@ dependencies:
   # ========== UTILITÁRIOS ==========
   uuid: ^4.0.0
   
-  # ========== DESIGN ==========
-  shimmer: ^3.0.0
+  # ========== PERFORMANCE ==========
+  flutter_native_splash: ^2.3.8
+  flutter_launcher_icons: ^0.13.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
-  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+  
+  # ========== ASSETS ==========
+  assets:
+    - assets/icon/
+    - assets/images/
+  
+  # ========== FONTES (COMENTADAS - crie a pasta e baixe as fontes) ==========
+  # fonts:
+  #   - family: Poppins
+  #     fonts:
+  #       - asset: assets/fonts/Poppins-Regular.ttf
+  #         weight: 400
+  #       - asset: assets/fonts/Poppins-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Poppins-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Poppins-Bold.ttf
+  #         weight: 700
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: assets/fonts/Roboto-Regular.ttf
+  #       - asset: assets/fonts/Roboto-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Roboto-Bold.ttf
+  #         weight: 700
 
+# ========== CONFIGURAÇÃO DO ÍCONE ==========
 flutter_launcher_icons:
   android: true
   ios: true
@@ -62,5 +94,17 @@ flutter_launcher_icons:
     generate: true
     icon_size: 48
   image_path: "assets/icon/icon.png"
-  adaptive_icon_background: "#6A1B9A"
+  adaptive_icon_background: "#7B2CBF"
   adaptive_icon_foreground: "assets/icon/icon-foreground.png"
+
+# ========== CONFIGURAÇÃO DA SPLASH SCREEN ==========
+flutter_native_splash:
+  color: "#7B2CBF"
+  image: assets/images/splash_logo.png
+  android: true
+  ios: true
+  web: false
+  
+  android_12:
+    color: "#7B2CBF"
+    image: assets/images/splash_logo_android12.png

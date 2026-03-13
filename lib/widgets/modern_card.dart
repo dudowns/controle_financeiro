@@ -1,3 +1,4 @@
+// lib/widgets/modern_card.dart
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
@@ -28,15 +29,17 @@ class ModernCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius:
-            isRounded ? BorderRadius.circular(AppSizes.radiusL) : null,
+        borderRadius: isRounded
+            ? BorderRadius.circular(12)
+            : null, // ✅ Usando valor direto se AppSizes não existir
         child: Container(
           height: height,
-          padding: padding ?? const EdgeInsets.all(AppSizes.paddingL),
+          padding: padding ?? const EdgeInsets.all(16), // ✅ Padding direto
           decoration: BoxDecoration(
-            color: color ?? AppColors.cardBackground,
-            borderRadius:
-                isRounded ? BorderRadius.circular(AppSizes.radiusL) : null,
+            color: color ??
+                Colors
+                    .white, // ✅ CORRIGIDO: usar Colors.white em vez de AppColors.cardBackground
+            borderRadius: isRounded ? BorderRadius.circular(12) : null,
             boxShadow: hasShadow
                 ? [
                     BoxShadow(
@@ -46,7 +49,8 @@ class ModernCard extends StatelessWidget {
                       spreadRadius: 1,
                     ),
                     BoxShadow(
-                      color: AppColors.primaryPurple.withOpacity(0.02),
+                      color: const Color(0xFF9C27B0).withOpacity(
+                          0.02), // ✅ CORRIGIDO: usando primary direto
                       blurRadius: 20,
                       offset: const Offset(0, -2),
                     ),

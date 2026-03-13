@@ -1,4 +1,5 @@
 // lib/screens/backup_screen.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -33,17 +34,12 @@ class _BackupScreenState extends State<BackupScreen> {
     setState(() => carregando = false);
   }
 
-  // CORRIGIDO: Usar data do nome do arquivo quando possível
   String _formatarData(File file) {
     final nome = file.path.split('\\').last;
-
-    // Tentar extrair data do nome do arquivo (mais preciso)
     final dataDoNome = DateHelper.dataDoNomeArquivo(nome);
     if (dataDoNome != null) {
       return DateFormat('dd/MM/yyyy HH:mm').format(dataDoNome);
     }
-
-    // Fallback: usar data de modificação (convertendo UTC para Brasília)
     final stat = file.statSync();
     return DateHelper.formatarDataBrasil(stat.modified, comHora: true);
   }
@@ -60,7 +56,7 @@ class _BackupScreenState extends State<BackupScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Backup e Restauração'),
-        backgroundColor: AppColors.primaryPurple,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -84,9 +80,10 @@ class _BackupScreenState extends State<BackupScreen> {
                       if (caminho != null && context.mounted) {
                         await _carregarBackups();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('✅ Backup realizado com sucesso!'),
-                            backgroundColor: Colors.green,
+                          SnackBar(
+                            content:
+                                const Text('✅ Backup realizado com sucesso!'),
+                            backgroundColor: AppColors.success,
                           ),
                         );
                       }
@@ -128,12 +125,11 @@ class _BackupScreenState extends State<BackupScreen> {
                                 leading: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryPurple
-                                        .withOpacity(0.1),
+                                    color: AppColors.primary.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: const Icon(Icons.backup,
-                                      color: AppColors.primaryPurple),
+                                  child: Icon(Icons.backup,
+                                      color: AppColors.primary),
                                 ),
                                 title: Text(
                                   nome,
@@ -143,7 +139,6 @@ class _BackupScreenState extends State<BackupScreen> {
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // AGORA MOSTRA A DATA CORRETA (BRASÍLIA)!
                                     Text('📅 ${_formatarData(backup)}'),
                                     Text('💾 ${_formatarTamanho(backup)}'),
                                   ],
@@ -183,11 +178,11 @@ class _BackupScreenState extends State<BackupScreen> {
                                                     ScaffoldMessenger.of(
                                                             context)
                                                         .showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text(
+                                                      SnackBar(
+                                                        content: const Text(
                                                             '✅ Backup restaurado!'),
                                                         backgroundColor:
-                                                            Colors.green,
+                                                            AppColors.success,
                                                       ),
                                                     );
                                                   }
@@ -227,8 +222,8 @@ class _BackupScreenState extends State<BackupScreen> {
                                                     ScaffoldMessenger.of(
                                                             context)
                                                         .showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text(
+                                                      SnackBar(
+                                                        content: const Text(
                                                             '🗑️ Backup excluído'),
                                                         backgroundColor:
                                                             Colors.orange,

@@ -13,8 +13,7 @@ import '../constants/app_text_styles.dart';
 import '../widgets/primary_card.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/empty_state.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
+import '../utils/formatters.dart';
 
 class AnaliseScreen extends StatefulWidget {
   const AnaliseScreen({super.key});

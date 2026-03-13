@@ -1,3 +1,5 @@
+// lib/widgets/loading_indicator.dart
+
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
@@ -13,7 +15,8 @@ class LoadingIndicator extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+            valueColor: AlwaysStoppedAnimation<Color>(
+                AppColors.primary), // 🔥 CORRIGIDO!
           ),
           if (message != null) ...[
             const SizedBox(height: 16),

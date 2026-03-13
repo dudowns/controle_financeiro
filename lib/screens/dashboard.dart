@@ -1,16 +1,14 @@
 // lib/screens/dashboard.dart
-
 import 'package:flutter/material.dart';
+import 'package:animate_do/animate_do.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../repositories/lancamento_repository.dart'; // 🔥 NOVO
+import '../repositories/lancamento_repository.dart';
 import '../services/backup_service_plus.dart';
 import '../utils/date_helper.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
-import '../constants/app_text_styles.dart';
-import '../constants/app_animations.dart';
 import '../widgets/gradient_card.dart';
 import '../widgets/primary_card.dart';
 import '../widgets/modern_card.dart';
@@ -19,11 +17,9 @@ import '../widgets/animated_counter.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
+import '../utils/formatters.dart';
 import '../services/performance_service.dart';
 
-// Modelo para dados do dashboard
 class DashboardData {
   final double saldo;
   final double receitas;
@@ -55,7 +51,6 @@ class DashboardScreen extends StatefulWidget {
 
 class DashboardScreenState extends State<DashboardScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
-  // 🔥 Usar repositório
   final LancamentoRepository _lancamentoRepo = LancamentoRepository();
   final BackupServicePlus _backupService = BackupServicePlus();
 
@@ -65,12 +60,10 @@ class DashboardScreenState extends State<DashboardScreen>
   String? _erro;
 
   late DateTime _mesSelecionado;
-  final Map<String, DashboardData> _cache = {};
+  final Map<DateTime, DashboardData> _cache = {};
 
-  // Animações
   late AnimationController _animationController;
 
-  // Informações do backup
   Map<String, dynamic> _infoBackup = {'existe': false};
   bool _carregandoBackup = false;
 
@@ -97,6 +90,7 @@ class DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _carregarInfoBackup() async {
+    if (!mounted) return;
     setState(() => _carregandoBackup = true);
     try {
       final backups = await _backupService.listarBackups();
@@ -107,34 +101,38 @@ class DashboardScreenState extends State<DashboardScreen>
         DateTime? dataBackup = DateHelper.dataDoNomeArquivo(nome);
 
         if (dataBackup == null) {
-          final dataUtc = ultimoBackup.statSync().modified;
+          final dataUtc = await ultimoBackup.lastModified();
           dataBackup = DateHelper.utcParaBrasilia(dataUtc);
         }
 
-        setState(() {
-          _infoBackup = {
-            'existe': true,
-            'data': dataBackup,
-            'caminho': ultimoBackup.path,
-          };
-        });
+        if (mounted) {
+          setState(() {
+            _infoBackup = {
+              'existe': true,
+              'data': dataBackup,
+              'caminho': ultimoBackup.path,
+            };
+          });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            _infoBackup = {'existe': false};
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao verificar backup: $e');
+      if (mounted) {
         setState(() {
           _infoBackup = {'existe': false};
         });
       }
-    } catch (e) {
-      debugPrint('Erro ao verificar backup: $e');
-      setState(() {
-        _infoBackup = {'existe': false};
-      });
     } finally {
-      setState(() => _carregandoBackup = false);
+      if (mounted) {
+        setState(() => _carregandoBackup = false);
+      }
     }
-  }
-
-  String _getCacheKey(DateTime mes) {
-    return '${mes.year}-${mes.month}';
   }
 
   Future<void> _carregarDados() async {
@@ -148,11 +146,10 @@ class DashboardScreenState extends State<DashboardScreen>
     });
 
     try {
-      final cacheKey = _getCacheKey(_mesSelecionado);
-      if (_cache.containsKey(cacheKey)) {
+      if (_cache.containsKey(_mesSelecionado)) {
         if (mounted) {
           setState(() {
-            _dados = _cache[cacheKey];
+            _dados = _cache[_mesSelecionado];
             _carregando = false;
             _primeiraCarga = false;
           });
@@ -161,11 +158,10 @@ class DashboardScreenState extends State<DashboardScreen>
         return;
       }
 
-      // 🔥 Usar repositório
       final lancamentos = await _lancamentoRepo.getAllLancamentos();
       final dados = _processarLancamentos(lancamentos, _mesSelecionado);
 
-      _cache[cacheKey] = dados;
+      _cache[_mesSelecionado] = dados;
 
       if (_cache.length > 6) {
         final chavesAntigas = _cache.keys.take(_cache.length - 6).toList();
@@ -234,7 +230,8 @@ class DashboardScreenState extends State<DashboardScreen>
                 (gastosPorCategoria[categoria] ?? 0) + valor;
           }
         }
-      } catch (e) {
+      } catch (e, stackTrace) {
+        debugPrint('Erro ao processar lançamento: $e\n$stackTrace');
         continue;
       }
     }
@@ -301,12 +298,14 @@ class DashboardScreenState extends State<DashboardScreen>
                 final caminho = await _backupService.salvarBackupEmArquivo();
                 if (caminho != null && mounted) {
                   await _carregarInfoBackup();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Backup realizado!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ Backup realizado!'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
                 }
               },
               child: const Text('Fazer agora'),
@@ -325,9 +324,10 @@ class DashboardScreenState extends State<DashboardScreen>
 
     final diasAtras = hojeSemHora.difference(dataBackupSemHora).inDays;
 
-    final cor = diasAtras > 7 ? Colors.orange : Colors.green;
-    final corFundo =
-        diasAtras > 7 ? Colors.orange.shade50 : Colors.green.shade50;
+    final cor = diasAtras > 7 ? Colors.orange : AppColors.success;
+    final corFundo = diasAtras > 7
+        ? Colors.orange.shade50
+        : AppColors.success.withOpacity(0.1);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -385,7 +385,7 @@ class DashboardScreenState extends State<DashboardScreen>
     super.build(context);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: _buildBody(),
       ),
@@ -414,7 +414,7 @@ class DashboardScreenState extends State<DashboardScreen>
             const SizedBox(height: AppSizes.paddingL),
             Text(
               _erro!,
-              style: AppTextStyles.body1,
+              style: const TextStyle(fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSizes.paddingL),
@@ -433,7 +433,7 @@ class DashboardScreenState extends State<DashboardScreen>
 
     return RefreshIndicator(
       onRefresh: _carregarDados,
-      color: AppColors.primaryPurple,
+      color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSizes.paddingXL),
@@ -469,8 +469,11 @@ class DashboardScreenState extends State<DashboardScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            "Dashboard",
-            style: AppTextStyles.headline1,
+            "",
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           Container(
             decoration: BoxDecoration(
@@ -488,16 +491,16 @@ class DashboardScreenState extends State<DashboardScreen>
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () => _navegarMes(-1),
-                  color: AppColors.primaryPurple,
+                  color: AppColors.primary,
                 ),
                 Text(
-                  DateFormatter.formatMonth(_mesSelecionado),
+                  Formatador.mesAno(_mesSelecionado),
                   style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () => _navegarMes(1),
-                  color: AppColors.primaryPurple,
+                  color: AppColors.primary,
                 ),
               ],
             ),
@@ -510,8 +513,7 @@ class DashboardScreenState extends State<DashboardScreen>
   Widget _buildSemDados() {
     return EmptyState(
       icon: Icons.pie_chart_outline,
-      message:
-          'Nenhum lançamento em ${DateFormatter.formatMonth(_mesSelecionado)}',
+      message: 'Nenhum lançamento em ${Formatador.mesAno(_mesSelecionado)}',
       buttonText: 'Adicionar lançamento',
       onButtonPressed: () {
         Navigator.pushNamed(context, '/nova-transacao');
@@ -550,12 +552,16 @@ class DashboardScreenState extends State<DashboardScreen>
           const SizedBox(height: AppSizes.paddingS),
           AnimatedCounter(
             value: _dados?.saldo ?? 0,
-            formatter: CurrencyFormatter.format,
-            style: AppTextStyles.moneyLarge,
+            formatter: Formatador.moeda,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: AppSizes.paddingXS),
           Text(
-            'Mês de ${DateFormatter.formatMonth(_mesSelecionado)}',
+            'Mês de ${Formatador.mesAno(_mesSelecionado)}',
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ],
@@ -571,7 +577,7 @@ class DashboardScreenState extends State<DashboardScreen>
             'Receitas',
             _dados?.receitas ?? 0,
             Icons.arrow_upward,
-            AppColors.profitGreen,
+            AppColors.success,
           ),
         ),
         const SizedBox(width: AppSizes.paddingM),
@@ -580,7 +586,7 @@ class DashboardScreenState extends State<DashboardScreen>
             'Despesas',
             _dados?.despesas ?? 0,
             Icons.arrow_downward,
-            AppColors.lossRed,
+            AppColors.error,
           ),
         ),
       ],
@@ -599,14 +605,14 @@ class DashboardScreenState extends State<DashboardScreen>
               const SizedBox(width: AppSizes.paddingXS),
               Text(
                 titulo,
-                style: AppTextStyles.caption,
+                style: const TextStyle(fontSize: 12),
               ),
             ],
           ),
           const SizedBox(height: AppSizes.paddingS),
           AnimatedCounter(
             value: valor,
-            formatter: CurrencyFormatter.format,
+            formatter: Formatador.moeda,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -666,7 +672,7 @@ class DashboardScreenState extends State<DashboardScreen>
                 sections: [
                   PieChartSectionData(
                     value: _dados!.receitas,
-                    color: AppColors.profitGreen,
+                    color: AppColors.success,
                     radius: 80,
                     title:
                         '${((_dados!.receitas / _dados!.totalMovimentado) * 100).toStringAsFixed(0)}%',
@@ -679,7 +685,7 @@ class DashboardScreenState extends State<DashboardScreen>
                   ),
                   PieChartSectionData(
                     value: _dados!.despesas,
-                    color: AppColors.lossRed,
+                    color: AppColors.error,
                     radius: 80,
                     title:
                         '${((_dados!.despesas / _dados!.totalMovimentado) * 100).toStringAsFixed(0)}%',
@@ -702,11 +708,11 @@ class DashboardScreenState extends State<DashboardScreen>
               ),
               AnimatedCounter(
                 value: _dados?.totalMovimentado ?? 0,
-                formatter: CurrencyFormatter.format,
+                formatter: Formatador.moeda,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryPurple,
+                  color: AppColors.primary,
                 ),
               ),
               const SizedBox(height: AppSizes.paddingXS),
@@ -716,14 +722,14 @@ class DashboardScreenState extends State<DashboardScreen>
                   vertical: 2,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryPurple.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppSizes.radiusM),
                 ),
                 child: Text(
                   'R: ${((_dados?.receitas ?? 0) / (_dados?.totalMovimentado ?? 1) * 100).toStringAsFixed(0)}% | D: ${((_dados?.despesas ?? 0) / (_dados?.totalMovimentado ?? 1) * 100).toStringAsFixed(0)}%',
                   style: const TextStyle(
                     fontSize: 10,
-                    color: AppColors.primaryPurple,
+                    color: AppColors.primary,
                   ),
                 ),
               ),
@@ -802,11 +808,11 @@ class DashboardScreenState extends State<DashboardScreen>
               ),
               AnimatedCounter(
                 value: _dados!.despesas,
-                formatter: CurrencyFormatter.format,
+                formatter: Formatador.moeda,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryPurple,
+                  color: AppColors.primary,
                 ),
               ),
             ],
@@ -828,7 +834,10 @@ class DashboardScreenState extends State<DashboardScreen>
         children: [
           const Text(
             '📊 Estatísticas do período',
-            style: AppTextStyles.subtitle2,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: AppSizes.paddingL),
           _buildEstatisticaItem(
@@ -851,7 +860,7 @@ class DashboardScreenState extends State<DashboardScreen>
             children: [
               const Text(
                 'Taxa de economia',
-                style: AppTextStyles.body2,
+                style: TextStyle(fontSize: 14),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -860,16 +869,16 @@ class DashboardScreenState extends State<DashboardScreen>
                 ),
                 decoration: BoxDecoration(
                   color: _dados!.saldo >= 0
-                      ? AppColors.profitGreen.withOpacity(0.1)
-                      : AppColors.lossRed.withOpacity(0.1),
+                      ? AppColors.success.withOpacity(0.1)
+                      : AppColors.error.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppSizes.radiusXL),
                 ),
                 child: Text(
                   '${((_dados!.saldo / (_dados!.receitas > 0 ? _dados!.receitas : 1)) * 100).toStringAsFixed(1)}%',
                   style: TextStyle(
                     color: _dados!.saldo >= 0
-                        ? AppColors.profitGreen
-                        : AppColors.lossRed,
+                        ? AppColors.success
+                        : AppColors.error,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -890,7 +899,7 @@ class DashboardScreenState extends State<DashboardScreen>
           Expanded(
             child: Text(
               titulo,
-              style: AppTextStyles.body2,
+              style: const TextStyle(fontSize: 14),
             ),
           ),
           if (label != null)
@@ -901,20 +910,20 @@ class DashboardScreenState extends State<DashboardScreen>
                 vertical: 2,
               ),
               decoration: BoxDecoration(
-                color: AppColors.primaryPurple.withOpacity(0.1),
+                color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppSizes.radiusM),
               ),
               child: Text(
                 label,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: AppColors.primaryPurple,
+                  color: AppColors.primary,
                 ),
               ),
             ),
           AnimatedCounter(
             value: valor,
-            formatter: CurrencyFormatter.format,
+            formatter: Formatador.moeda,
             style: const TextStyle(
               fontWeight: FontWeight.w600,
             ),
@@ -938,7 +947,6 @@ class DashboardScreenState extends State<DashboardScreen>
   }
 }
 
-// ========== SKELETON LOADING ==========
 class _DashboardSkeleton extends StatelessWidget {
   const _DashboardSkeleton();
 

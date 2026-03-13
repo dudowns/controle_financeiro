@@ -6,6 +6,7 @@ import '../services/renda_fixa_diaria.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/date_formatter.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math';
 
 class DetalhesRendaFixaScreen extends StatefulWidget {
   final RendaFixaModel investimento;
@@ -24,6 +25,10 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
   late double _irParcial;
   late double _iofParcial;
 
+  // Cores constantes
+  static const Color primaryPurple = Color(0xFF6A1B9A);
+  static const Color secondaryPurple = Color(0xFF9C27B0);
+
   @override
   void initState() {
     super.initState();
@@ -32,15 +37,20 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
 
   void _calcularDados() {
     final hoje = DateTime.now();
+
+    // 🔥 CORRIGIDO: .toDouble() em todos os retornos num
     _valorHoje = RendaFixaDiaria.calcularValorEm(
       widget.investimento,
       hoje,
-    );
+    ).toDouble();
+
     _rendimentoHoje = _valorHoje - widget.investimento.valorAplicado;
+
     _irParcial = RendaFixaDiaria.calcularIRParcial(
       widget.investimento,
       hoje,
-    );
+    ).toDouble();
+
     _iofParcial = _calcularIOFParcial();
     _evolucao = RendaFixaDiaria.gerarEvolucaoDiaria(
       widget.investimento,
@@ -50,25 +60,28 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
 
   double _calcularIOFParcial() {
     final diasUteis = _calcularDiasUteisAteHoje();
-    if (diasUteis >= 30) return 0;
+    if (diasUteis >= 30) return 0.0; // 🔥 CORRIGIDO: 0.0 em vez de 0
 
     final aliquota = (30 - diasUteis) / 30 * 0.96;
     return _rendimentoHoje * aliquota;
   }
 
   int _calcularDiasUteisAteHoje() {
-    int diasUteis = 0;
-    DateTime atual = widget.investimento.dataAplicacao;
-    final hoje = DateTime.now();
+    final diasTotais =
+        DateTime.now().difference(widget.investimento.dataAplicacao).inDays;
 
-    while (atual.isBefore(hoje) || atual.isAtSameMomentAs(hoje)) {
-      if (atual.weekday != DateTime.saturday &&
-          atual.weekday != DateTime.sunday) {
-        diasUteis++;
-      }
-      atual = atual.add(const Duration(days: 1));
-    }
-    return diasUteis;
+    if (diasTotais <= 0) return 0;
+    return (diasTotais * 5 / 7).round();
+  }
+
+  double _calcularRendimentoHoje() {
+    final ontem = DateTime.now().subtract(const Duration(days: 1));
+    final valorOntem = RendaFixaDiaria.calcularValorEm(
+      widget.investimento,
+      ontem,
+    ).toDouble(); // 🔥 CORRIGIDO: .toDouble()
+
+    return _valorHoje - valorOntem;
   }
 
   @override
@@ -78,12 +91,13 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
     final diasTotais = widget.investimento.dataVencimento
         .difference(widget.investimento.dataAplicacao)
         .inDays;
-    final progresso = diasAplicados / diasTotais;
+    final progresso =
+        diasTotais > 0 ? diasAplicados / diasTotais : 0.0; // 🔥 CORRIGIDO: 0.0
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.investimento.nome),
-        backgroundColor: const Color(0xFF6A1B9A),
+        backgroundColor: primaryPurple,
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -97,7 +111,7 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF6A1B9A), Color(0xFF9C27B0)],
+                  colors: [primaryPurple, secondaryPurple],
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -204,7 +218,7 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
                         '${(progresso * 100).toStringAsFixed(1)}%',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF6A1B9A),
+                          color: primaryPurple,
                         ),
                       ),
                     ],
@@ -213,9 +227,9 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: progresso,
+                      value: progresso.clamp(0.0, 1.0), // 🔥 AGORA FUNCIONA!
                       backgroundColor: Colors.grey[200],
-                      color: const Color(0xFF6A1B9A),
+                      color: primaryPurple,
                       minHeight: 8,
                     ),
                   ),
@@ -258,9 +272,9 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
                 ),
                 child: LineChart(
                   LineChartData(
-                    gridData: FlGridData(show: false),
+                    gridData: const FlGridData(show: false),
                     titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
+                      leftTitles: const AxisTitles(
                         sideTitles: SideTitles(showTitles: false),
                       ),
                       bottomTitles: AxisTitles(
@@ -284,10 +298,10 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
                           reservedSize: 22,
                         ),
                       ),
-                      topTitles: AxisTitles(
+                      topTitles: const AxisTitles(
                         sideTitles: SideTitles(showTitles: false),
                       ),
-                      rightTitles: AxisTitles(
+                      rightTitles: const AxisTitles(
                         sideTitles: SideTitles(showTitles: false),
                       ),
                     ),
@@ -295,18 +309,17 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
                     lineBarsData: [
                       LineChartBarData(
                         spots: _evolucao.asMap().entries.map((e) {
-                          return FlSpot(
-                            e.key.toDouble(),
-                            e.value['valor'],
-                          );
+                          final valor =
+                              (e.value['valor'] as num?)?.toDouble() ?? 0.0;
+                          return FlSpot(e.key.toDouble(), valor);
                         }).toList(),
                         isCurved: true,
-                        color: const Color(0xFF6A1B9A),
+                        color: primaryPurple,
                         barWidth: 3,
                         dotData: const FlDotData(show: false),
                         belowBarData: BarAreaData(
                           show: true,
-                          color: const Color(0xFF6A1B9A).withOpacity(0.1),
+                          color: primaryPurple.withOpacity(0.1),
                         ),
                       ),
                     ],
@@ -408,7 +421,7 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
                     'Valor Final Projetado',
                     CurrencyFormatter.format(
                         widget.investimento.valorFinal ?? 0),
-                    cor: const Color(0xFF6A1B9A),
+                    cor: primaryPurple,
                     negrito: true,
                     fontSize: 16,
                   ),
@@ -495,15 +508,6 @@ class _DetalhesRendaFixaScreenState extends State<DetalhesRendaFixaScreen> {
         ],
       ),
     );
-  }
-
-  double _calcularRendimentoHoje() {
-    final ontem = DateTime.now().subtract(const Duration(days: 1));
-    final valorOntem = RendaFixaDiaria.calcularValorEm(
-      widget.investimento,
-      ontem,
-    );
-    return _valorHoje - valorOntem;
   }
 
   String _formatarTaxa() {

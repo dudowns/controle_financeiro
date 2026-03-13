@@ -1,13 +1,12 @@
 // lib/screens/main_screen.dart
 import 'package:flutter/material.dart';
+import 'package:animate_do/animate_do.dart';
+import '../constants/app_colors.dart';
 import 'dashboard.dart';
 import 'lancamentos.dart';
+import 'contas_do_mes_screen.dart';
 import 'investimentos_tabs.dart';
 import 'metas_screen.dart';
-import 'contas_fixas_screen.dart'; // 🔥 NOVA IMPORTAÇÃO!
-import 'backup_screen.dart';
-import 'notificacoes_screen.dart';
-import '../constants/app_colors.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -16,78 +15,157 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0;
+class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
+  int _currentIndex = 0;
+  late final List<Widget> _screens; // Criado UMA vez
+  late final AnimationController _animationController;
+  late final Animation<double> _scaleAnimation;
 
-  // Lista de telas na ordem do menu inferior
-  final List<Widget> _screens = [
-    const DashboardScreen(), // Índice 0
-    LancamentosScreen(), // Índice 1
-    const ContasFixasScreen(), // Índice 2 - NOVA ABA!
-    const InvestimentosTabsScreen(), // Índice 3
-    const MetasScreen(), // Índice 4
+  final List<String> _titles = [
+    'Dashboard',
+    'Gastos',
+    'Contas do Mês',
+    'Invest',
+    'Metas',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Animações para o navbar
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
+    );
+
+    // Inicializa as telas UMA ÚNICA VEZ (mais rápido!)
+    _screens = const [
+      DashboardScreen(),
+      LancamentosScreen(),
+      ContasDoMesScreen(),
+      InvestimentosTabsScreen(),
+      MetasScreen(),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Controle Financeiro'),
-        backgroundColor: AppColors.primaryPurple,
+        title: Text(
+          _titles[_currentIndex],
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
-        // 🔥 BOTÕES NO CANTO SUPERIOR DIREITO
-        actions: [
-          // Botão de Backup
-          IconButton(
-            icon: const Icon(Icons.backup),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const BackupScreen()),
-              );
-            },
-            tooltip: 'Backup e Restauração',
+        elevation: 0,
+        centerTitle: false,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: AppColors.primaryGradient,
           ),
-          // Botão de Notificações
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NotificacoesScreen(),
-                ),
-              );
-            },
-            tooltip: 'Notificações',
-          ),
-        ],
+        ),
       ),
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed, // Necessário para 5 itens
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Gastos'),
-          // 🔥 NOVO ITEM - Contas Fixas
-          BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long), label: 'Contas Fixas'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.show_chart), label: 'Invest'),
-          BottomNavigationBarItem(icon: Icon(Icons.flag), label: 'Metas'),
+
+      // IndexedStack = RÁPIDO PRA CARAMBA! 🚀
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+
+      // Bottom Navigation Bar TURBINADO
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(
+                    Icons.dashboard_outlined, Icons.dashboard, 'Dashboard', 0),
+                _buildNavItem(
+                    Icons.pie_chart_outline, Icons.pie_chart, 'Gastos', 1),
+                _buildNavItem(
+                    Icons.receipt_outlined, Icons.receipt, 'Contas', 2),
+                _buildNavItem(
+                    Icons.trending_up_outlined, Icons.trending_up, 'Invest', 3),
+                _buildNavItem(Icons.flag_outlined, Icons.flag, 'Metas', 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(
+      IconData iconOutlined, IconData iconFilled, String label, int index) {
+    final isSelected = _currentIndex == index;
+
+    return GestureDetector(
+      onTap: () {
+        if (_currentIndex != index) {
+          setState(() => _currentIndex = index);
+          _animationController.forward(from: 0);
+        }
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.all(isSelected ? 8 : 4),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary.withOpacity(0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ScaleTransition(
+              scale: isSelected
+                  ? _scaleAnimation
+                  : const AlwaysStoppedAnimation(1.0),
+              child: Icon(
+                isSelected ? iconFilled : iconOutlined,
+                color: isSelected ? AppColors.primary : AppColors.muted,
+                size: isSelected ? 26 : 22,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isSelected ? AppColors.primary : AppColors.muted,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
         ],
-        // Cores do menu inferior
-        selectedItemColor: AppColors.primaryPurple,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        elevation: 8,
       ),
     );
   }

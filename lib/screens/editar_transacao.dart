@@ -1,53 +1,36 @@
 // lib/screens/editar_transacao.dart
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart'; // 🔥 IMPORT ADICIONADO!
+import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../repositories/lancamento_repository.dart';
 import '../models/lancamento_model.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
-import '../constants/app_text_styles.dart';
-import '../utils/validators.dart';
-import '../utils/mask_formatters.dart';
-import '../utils/currency_formatter.dart';
+import '../utils/formatters.dart';
+import '../widgets/gradient_button.dart';
 
 class EditarTransacaoScreen extends StatefulWidget {
   final Map<String, dynamic> lancamento;
 
-  const EditarTransacaoScreen({Key? key, required this.lancamento})
-      : super(key: key);
+  const EditarTransacaoScreen({super.key, required this.lancamento});
 
   @override
   State<EditarTransacaoScreen> createState() => _EditarTransacaoScreenState();
 }
 
 class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
-  // 🔥 Usar o repositório
-  final LancamentoRepository _lancamentoRepo = LancamentoRepository();
-
+  final DBHelper _dbHelper = DBHelper();
   final _formKey = GlobalKey<FormState>();
-  final _descricaoController = TextEditingController();
-  final _valorController = TextEditingController();
-  final _observacaoController = TextEditingController();
+
+  late TextEditingController _descricaoController;
+  late TextEditingController _observacaoController;
 
   late String _tipoSelecionado;
   late String _categoriaSelecionada;
   late DateTime _dataSelecionada;
+  late double _valor;
 
-  bool _salvando = false;
-  bool _excluindo = false;
-  String? _erroValidacao;
-
-  final List<String> _categoriasReceita = const [
-    'Renda Extra',
-    'Salário',
-    'Investimentos',
-    'Outros',
-  ];
-
-  final List<String> _categoriasGasto = const [
+  final List<String> _tipos = ['receita', 'gasto'];
+  final List<String> _categorias = [
     'Alimentação',
     'Transporte',
     'Moradia',
@@ -55,172 +38,113 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
     'Educação',
     'Lazer',
     'Investimentos',
-    'Cuidados Pessoais',
-    'Empréstimo',
-    'Outros',
+    'Outros'
   ];
-
-  List<String> get _categoriasAtuais {
-    return _tipoSelecionado == 'receita'
-        ? _categoriasReceita
-        : _categoriasGasto;
-  }
 
   @override
   void initState() {
     super.initState();
-
-    // Carregar dados do lançamento
-    _tipoSelecionado = widget.lancamento['tipo'] ?? 'gasto';
-    _categoriaSelecionada = widget.lancamento['categoria'] ?? 'Outros';
+    _descricaoController =
+        TextEditingController(text: widget.lancamento['descricao']);
+    _observacaoController =
+        TextEditingController(text: widget.lancamento['observacao'] ?? '');
+    _tipoSelecionado = widget.lancamento['tipo'];
+    _categoriaSelecionada = widget.lancamento['categoria'];
     _dataSelecionada = DateTime.parse(widget.lancamento['data']);
-
-    _descricaoController.text = widget.lancamento['descricao'] ?? '';
-
-    // Formatar valor para exibição (com vírgula)
-    final valor = (widget.lancamento['valor'] ?? 0).toDouble();
-    _valorController.text = valor.toStringAsFixed(2).replaceAll('.', ',');
-
-    _observacaoController.text = widget.lancamento['observacao'] ?? '';
+    _valor = (widget.lancamento['valor'] ?? 0).toDouble();
   }
 
   @override
   void dispose() {
     _descricaoController.dispose();
-    _valorController.dispose();
     _observacaoController.dispose();
     super.dispose();
   }
 
-  // Formatter para dinheiro
-  List<TextInputFormatter> get _valorInputFormatters => [
-        FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(13),
-        _MoneyInputFormatter(),
-      ];
-
-  // Validação melhorada
-  bool _validarValor(String valorStr) {
-    setState(() => _erroValidacao = null);
-
-    if (valorStr.isEmpty) {
-      setState(() => _erroValidacao = 'Digite um valor');
-      return false;
-    }
-
-    // Remove formatação
-    String cleaned = valorStr.replaceAll('.', '').replaceAll(',', '.');
-
-    if (cleaned.isEmpty) {
-      setState(() => _erroValidacao = 'Valor inválido');
-      return false;
-    }
-
-    final valor = double.tryParse(cleaned);
-
-    if (valor == null) {
-      setState(() => _erroValidacao = 'Digite um número válido');
-      return false;
-    }
-
-    if (valor <= 0) {
-      setState(() => _erroValidacao = 'O valor deve ser maior que zero');
-      return false;
-    }
-
-    if (valor > 999999999) {
-      setState(() => _erroValidacao = 'Valor muito alto');
-      return false;
-    }
-
-    return true;
-  }
-
-  void _mostrarErro(String mensagem) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensagem),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-      ),
+  Future<void> _selecionarData() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _dataSelecionada,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      locale: const Locale('pt', 'BR'),
     );
+    if (picked != null && picked != _dataSelecionada) {
+      setState(() {
+        _dataSelecionada = picked;
+      });
+    }
   }
 
-  // Salvar usando o repositório
-  Future<void> _salvar() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (!_validarValor(_valorController.text)) return;
-
-    setState(() => _salvando = true);
-
-    try {
-      // Converter valor para número
-      String valorStr =
-          _valorController.text.replaceAll('.', '').replaceAll(',', '.');
-      final valor = double.parse(valorStr);
+  Future<void> _atualizar() async {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
 
       final lancamentoAtualizado = {
         'id': widget.lancamento['id'],
         'descricao': _descricaoController.text,
+        'valor': _valor,
         'tipo': _tipoSelecionado,
         'categoria': _categoriaSelecionada,
-        'valor': valor,
         'data': _dataSelecionada.toIso8601String(),
-        'observacao': _observacaoController.text.isNotEmpty
-            ? _observacaoController.text
-            : null,
+        'observacao': _observacaoController.text,
       };
 
-      await _lancamentoRepo.updateLancamento(lancamentoAtualizado);
+      try {
+        await _dbHelper.updateLancamento(lancamentoAtualizado);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Lançamento atualizado!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      setState(() {
-        _erroValidacao = 'Erro ao atualizar: $e';
-      });
-      _mostrarErro('Erro ao atualizar: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _salvando = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ ${_tipoSelecionado == 'receita' ? 'Receita' : 'Gasto'} atualizado!',
+              ),
+              backgroundColor: _tipoSelecionado == 'receita'
+                  ? AppColors.success
+                  : AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao atualizar: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       }
     }
   }
 
-  // Deletar usando o repositório
-  Future<void> _deletar() async {
+  Future<void> _excluir() async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmar exclusão'),
+        title: const Text('Excluir Lançamento'),
         content: const Text('Deseja realmente excluir este lançamento?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCELAR'),
+            child: const Text('Cancelar'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('EXCLUIR'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('Excluir'),
           ),
         ],
       ),
     );
 
     if (confirmar == true) {
-      setState(() => _excluindo = true);
-
       try {
-        await _lancamentoRepo.deleteLancamento(widget.lancamento['id']);
+        await _dbHelper.deleteLancamento(widget.lancamento['id']);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -233,342 +157,224 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
           Navigator.pop(context, true);
         }
       } catch (e) {
-        _mostrarErro('Erro ao excluir: $e');
-      } finally {
         if (mounted) {
-          setState(() => _excluindo = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao excluir: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
         }
       }
     }
   }
 
-  Future<void> _selecionarData() async {
-    final DateTime? data = await showDatePicker(
-      context: context,
-      initialDate: _dataSelecionada,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-
-    if (data != null) {
-      setState(() {
-        _dataSelecionada = data;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final bool processando = _salvando || _excluindo;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editar Lançamento'),
-        backgroundColor: const Color(0xFF6A1B9A),
+        title: const Text('Editar Transação'),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
-          if (!processando)
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.white),
-              onPressed: _deletar,
-            ),
-          if (_excluindo)
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-            ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: _excluir,
+          ),
         ],
       ),
-      body: Stack(
-        children: [
-          Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // TIPO
-                  const Text('Tipo',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                          child: _buildTipoButton('Gasto', Icons.arrow_downward,
-                              Colors.red, 'gasto', processando)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: _buildTipoButton('Receita', Icons.arrow_upward,
-                              Colors.green, 'receita', processando)),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // DESCRIÇÃO
-                  TextFormField(
-                    controller: _descricaoController,
-                    enabled: !processando,
-                    decoration: const InputDecoration(
-                      labelText: 'Descrição',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.description),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Digite uma descrição';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // VALOR COM MONEY INPUT FORMATTER
-                  TextFormField(
-                    controller: _valorController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: _valorInputFormatters,
-                    enabled: !processando,
-                    decoration: InputDecoration(
-                      labelText: 'Valor (R\$)',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.attach_money),
-                      hintText: '0,00',
-                      errorText: _erroValidacao,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Digite um valor';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // CATEGORIA
-                  DropdownButtonFormField<String>(
-                    value: _categoriaSelecionada,
-                    decoration: const InputDecoration(
-                      labelText: 'Categoria',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.category),
-                    ),
-                    items: _categoriasAtuais.map((categoria) {
-                      return DropdownMenuItem(
-                        value: categoria,
-                        child: Text(categoria),
-                      );
-                    }).toList(),
-                    onChanged: processando
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() {
-                                _categoriaSelecionada = value;
-                              });
-                            }
-                          },
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // DATA
-                  InkWell(
-                    onTap: processando ? null : _selecionarData,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Tipo
+              const Text(
+                'Tipo',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: _tipos.map((tipo) {
+                  return Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 16),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[400]!),
-                        borderRadius: BorderRadius.circular(12),
-                        color: processando ? Colors.grey[100] : Colors.white,
+                      margin: EdgeInsets.only(
+                        right: tipo == 'receita' ? 8 : 0,
+                        left: tipo == 'gasto' ? 8 : 0,
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today,
-                              color: Color(0xFF6A1B9A)),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Data',
-                                style:
-                                    TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                // 🔥 AQUI USA DateFormat CORRETAMENTE
-                                DateFormat('dd/MM/yyyy')
-                                    .format(_dataSelecionada),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                      child: FilterChip(
+                        label: Text(
+                          tipo == 'receita' ? '💰 Receita' : '💸 Gasto',
+                          style: TextStyle(
+                            color: _tipoSelecionado == tipo
+                                ? Colors.white
+                                : Colors.black,
                           ),
-                        ],
+                        ),
+                        selected: _tipoSelecionado == tipo,
+                        selectedColor: tipo == 'receita'
+                            ? AppColors.success
+                            : AppColors.error,
+                        checkmarkColor: Colors.white,
+                        onSelected: (selected) {
+                          setState(() {
+                            _tipoSelecionado = tipo;
+                          });
+                        },
                       ),
                     ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Descrição
+              TextFormField(
+                controller: _descricaoController,
+                decoration: const InputDecoration(
+                  labelText: 'Descrição',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Digite uma descrição';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Valor
+              TextFormField(
+                initialValue: _valor.toStringAsFixed(2).replaceAll('.', ','),
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Valor',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.attach_money),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Digite um valor';
+                  }
+                  final val = double.tryParse(value.replaceAll(',', '.'));
+                  if (val == null || val <= 0) {
+                    return 'Digite um valor válido';
+                  }
+                  return null;
+                },
+                onSaved: (value) {
+                  _valor = double.parse(value!.replaceAll(',', '.'));
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Categoria - CORRIGIDO!
+              DropdownButtonFormField<String>(
+                value: _categoriaSelecionada,
+                decoration: const InputDecoration(
+                  labelText: 'Categoria',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category),
+                ),
+                items: _categorias.map((categoria) {
+                  return DropdownMenuItem(
+                    value: categoria,
+                    child: Text(categoria),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _categoriaSelecionada = value!;
+                  });
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Selecione uma categoria';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Data
+              InkWell(
+                onTap: _selecionarData,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Data',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.calendar_today),
                   ),
-
-                  const SizedBox(height: 20),
-
-                  // OBSERVAÇÃO
-                  TextFormField(
-                    controller: _observacaoController,
-                    enabled: !processando,
-                    decoration: const InputDecoration(
-                      labelText: 'Observação (opcional)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.note),
-                    ),
-                    maxLines: 3,
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // BOTÕES
-                  Row(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed:
-                              processando ? null : () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.grey.shade700,
-                            side: BorderSide(color: Colors.grey.shade400),
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                          ),
-                          child: const Text('CANCELAR'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: processando ? null : _salvar,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6A1B9A),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                          ),
-                          child: _salvando
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
-                                  ),
-                                )
-                              : const Text('SALVAR'),
-                        ),
-                      ),
+                      Text(Formatador.data(_dataSelecionada)),
+                      const Icon(Icons.arrow_drop_down),
                     ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Observação
+              TextFormField(
+                controller: _observacaoController,
+                decoration: const InputDecoration(
+                  labelText: 'Observação (opcional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.note),
+                ),
+                maxLines: 3,
+              ),
+
+              const SizedBox(height: 32),
+
+              // Botões
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        side: BorderSide(color: Colors.grey[300]!),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('CANCELAR'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _atualizar,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('ATUALIZAR'),
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-          // Overlay de carregamento
-          if (processando)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(
-                child: Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Processando...'),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTipoButton(
-      String texto, IconData icone, Color cor, String tipo, bool processando) {
-    final isSelecionado = _tipoSelecionado == tipo;
-
-    return InkWell(
-      onTap: processando
-          ? null
-          : () {
-              setState(() {
-                _tipoSelecionado = tipo;
-                _categoriaSelecionada = _categoriasAtuais.first;
-                _erroValidacao = null;
-              });
-            },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        decoration: BoxDecoration(
-          color: isSelecionado ? cor.withOpacity(0.1) : Colors.grey.shade100,
-          border: Border.all(
-            color: isSelecionado ? cor : Colors.grey.shade300,
-            width: isSelecionado ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icone, color: isSelecionado ? cor : Colors.grey),
-            const SizedBox(width: 8),
-            Text(
-              texto,
-              style: TextStyle(
-                color: isSelecionado ? cor : Colors.grey.shade700,
-                fontWeight: isSelecionado ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
         ),
       ),
-    );
-  }
-}
-
-// 🔥 Formatter de dinheiro
-class _MoneyInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.isEmpty) return newValue;
-
-    String cleaned = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (cleaned.isEmpty) return newValue;
-
-    double value = double.parse(cleaned) / 100;
-    String formatted = value.toStringAsFixed(2).replaceAll('.', ',');
-
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

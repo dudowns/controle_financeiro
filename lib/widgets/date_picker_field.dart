@@ -1,3 +1,5 @@
+// lib/widgets/date_picker_field.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
@@ -35,7 +37,10 @@ class DatePickerField extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.calendar_today, color: AppColors.primaryPurple),
+            Icon(
+              Icons.calendar_today,
+              color: AppColors.primary, // 🔥 CORRIGIDO!
+            ),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

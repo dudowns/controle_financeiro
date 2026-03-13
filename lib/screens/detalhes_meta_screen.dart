@@ -1,17 +1,12 @@
 // lib/screens/detalhes_meta_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../repositories/meta_repository.dart'; // NOVO: import do repositório
+import '../repositories/meta_repository.dart';
 import 'adicionar_deposito.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
-import '../widgets/primary_card.dart';
-import '../widgets/gradient_card.dart';
-import '../widgets/info_row.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
+import '../utils/formatters.dart'; // ✅ ÚNICO IMPORT!
 
 class DetalhesMetaScreen extends StatefulWidget {
   final Map<String, dynamic> meta;
@@ -23,7 +18,6 @@ class DetalhesMetaScreen extends StatefulWidget {
 }
 
 class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
-  // 🔥 MUDANÇA 1: Usar o repositório
   final MetaRepository _metaRepo = MetaRepository();
 
   List<Map<String, dynamic>> depositos = [];
@@ -37,36 +31,38 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
     _carregarDepositos();
   }
 
-  // 🔥 MUDANÇA 2: Carregar depósitos usando o repositório
   Future<void> _carregarDepositos() async {
+    if (!mounted) return;
     setState(() => carregando = true);
 
     try {
       depositos = await _metaRepo.getDepositosByMetaId(metaAtual['id']);
 
-      // 🔥 NOVO: Também atualizar a meta para pegar valor atual mais recente
       final metaAtualizada = await _metaRepo.getMetaById(metaAtual['id']);
-      if (metaAtualizada != null) {
-        metaAtual = metaAtualizada;
+      if (metaAtualizada != null && mounted) {
+        setState(() {
+          metaAtual = metaAtualizada;
+        });
       }
     } catch (e) {
       debugPrint('❌ Erro ao carregar depósitos: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao carregar depósitos: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao carregar depósitos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() => carregando = false);
+      if (mounted) {
+        setState(() => carregando = false);
+      }
     }
   }
 
   String _formatarValor(double valor) {
-    return NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: 'R\$ ',
-    ).format(valor);
+    return Formatador.moeda(valor); // ✅ USANDO Formatador
   }
 
   Color _getCorPorTipo(String? cor) {
@@ -103,7 +99,6 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
     }
   }
 
-  // 🔥 MUDANÇA 3: Excluir depósito usando o repositório
   Future<void> _excluirDeposito(int id, double valor) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -126,24 +121,20 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
     );
 
     if (confirmar == true) {
+      if (!mounted) return;
       setState(() => carregando = true);
 
       try {
-        // Usar o método do repositório que já faz tudo
         final sucesso = await _metaRepo.removerDepositoEAtualizarMeta(id);
 
-        if (sucesso) {
-          // Recarregar dados
+        if (sucesso && mounted) {
           await _carregarDepositos();
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('✅ Depósito excluído!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Depósito excluído!'),
+              backgroundColor: Colors.green,
+            ),
+          );
         } else {
           throw Exception('Falha ao excluir depósito');
         }
@@ -157,14 +148,14 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
           );
         }
       } finally {
-        setState(() => carregando = false);
+        if (mounted) {
+          setState(() => carregando = false);
+        }
       }
     }
   }
 
-  // 🔥 MUDANÇA 4: Método para editar meta (placeholder)
   Future<void> _editarMeta() async {
-    // TODO: Implementar tela de edição de meta
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Funcionalidade em desenvolvimento'),
@@ -173,7 +164,6 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
     );
   }
 
-  // 🔥 MUDANÇA 5: Método para excluir meta
   Future<void> _excluirMeta() async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -197,12 +187,11 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
       ),
     );
 
-    if (confirmar == true) {
+    if (confirmar == true && mounted) {
       try {
         await _metaRepo.deleteMeta(metaAtual['id']);
-
         if (mounted) {
-          Navigator.pop(context, true); // Volta e sinaliza que excluiu
+          Navigator.pop(context, true);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('🗑️ Meta excluída!'),
@@ -419,7 +408,7 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Datas
+                        // Datas - ✅ CORRIGIDO!
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -441,7 +430,7 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
                                 ],
                               ),
                               Text(
-                                DateFormatter.formatDate(
+                                Formatador.data(// ✅ AGORA SIM!
                                     DateTime.parse(metaAtual['data_fim'])),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
@@ -514,7 +503,7 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
                                 ),
                               );
 
-                              if (result == true) {
+                              if (result == true && mounted) {
                                 await _carregarDepositos();
                               }
                             },
@@ -676,7 +665,7 @@ class _DetalhesMetaScreenState extends State<DetalhesMetaScreen> {
                                                 ),
                                               ),
                                               Text(
-                                                DateFormat('dd/MM/yyyy').format(
+                                                Formatador.data(// ✅ CORRIGIDO!
                                                     DateTime.parse(deposito[
                                                         'data_deposito'])),
                                                 style: TextStyle(

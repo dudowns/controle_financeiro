@@ -1,25 +1,14 @@
 // lib/screens/metas_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../repositories/meta_repository.dart'; // NOVO: import do repositório
-import 'nova_meta_screen.dart';
-import 'detalhes_meta_screen.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
-import '../constants/app_text_styles.dart';
-import '../constants/app_animations.dart';
-import '../widgets/primary_card.dart';
 import '../widgets/modern_card.dart';
-import '../widgets/gradient_button.dart';
 import '../widgets/animated_counter.dart';
-import '../widgets/loading_indicator.dart';
-import '../widgets/empty_state.dart';
-import '../widgets/skeleton_loader.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
-import '../services/performance_service.dart';
+import '../widgets/gradient_button.dart';
+import '../utils/formatters.dart';
+import 'detalhes_meta_screen.dart';
+import 'nova_meta_screen.dart';
 
 class MetasScreen extends StatefulWidget {
   const MetasScreen({super.key});
@@ -28,84 +17,42 @@ class MetasScreen extends StatefulWidget {
   State<MetasScreen> createState() => _MetasScreenState();
 }
 
-class _MetasScreenState extends State<MetasScreen>
-    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
-  // 🔥 MUDANÇA 1: Usar o repositório ao invés do DBHelper diretamente
-  final MetaRepository _metaRepo = MetaRepository();
-
-  List<Map<String, dynamic>> metas = [];
-  Map<String, dynamic>? estatisticas;
-
-  bool carregando = true;
-  bool _primeiraCarga = true;
-
-  // Animações
-  late AnimationController _animationController;
-  late AnimationController _progressAnimationController;
-
-  @override
-  bool get wantKeepAlive => true;
+class _MetasScreenState extends State<MetasScreen> {
+  final DBHelper _dbHelper = DBHelper();
+  List<Map<String, dynamic>> _metas = [];
+  bool _carregando = true;
 
   @override
   void initState() {
     super.initState();
     _carregarMetas();
-
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..forward();
-
-    _progressAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _progressAnimationController.dispose();
-    super.dispose();
-  }
-
-  // 🔥 MUDANÇA 2: Método de carregamento usando o repositório
   Future<void> _carregarMetas() async {
-    PerformanceService.start('carregarMetas');
-
-    setState(() => carregando = true);
+    if (!mounted) return;
+    setState(() => _carregando = true);
 
     try {
-      // Carregar metas COM os depósitos
-      metas = await _metaRepo.getAllMetasComDepositos();
-
-      // Carregar estatísticas
-      estatisticas = await _metaRepo.getEstatisticasMetas();
+      final metas = await _dbHelper.getAllMetas();
+      if (mounted) {
+        setState(() {
+          _metas = metas;
+          _carregando = false;
+        });
+      }
     } catch (e) {
       debugPrint('❌ Erro ao carregar metas: $e');
-
-      // Fallback: carregar só as metas se algo der errado
-      metas = await _metaRepo.getAllMetas();
+      if (mounted) {
+        setState(() => _carregando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao carregar metas: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
-
-    PerformanceService.stop('carregarMetas');
-
-    setState(() {
-      carregando = false;
-      _primeiraCarga = false;
-    });
-
-    // Iniciar animação de progresso após carregar
-    _progressAnimationController.forward();
-  }
-
-  // 🔥 MUDANÇA 3: Método para atualizar após adicionar/editar
-  Future<void> _atualizarAposAcao() async {
-    await _carregarMetas();
-
-    // Reiniciar animação de progresso
-    _progressAnimationController.reset();
-    _progressAnimationController.forward();
   }
 
   Color _getCorPorTipo(String? cor) {
@@ -121,7 +68,7 @@ class _MetasScreenState extends State<MetasScreen>
       case 'investimento':
         return Colors.purple;
       default:
-        return AppColors.primaryPurple;
+        return AppColors.primary;
     }
   }
 
@@ -144,50 +91,34 @@ class _MetasScreenState extends State<MetasScreen>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Metas'),
-        backgroundColor: AppColors.primaryPurple,
+        title: const Text(''),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
-          // 🔥 NOVO: Botão de estatísticas
-          if (estatisticas != null && !carregando)
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSizes.paddingM,
-                    vertical: AppSizes.paddingXS,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(AppSizes.radiusXL),
-                  ),
-                  child: Text(
-                    '${estatisticas!['emAndamento']} pendentes',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _carregarMetas,
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _carregando
+          ? const Center(child: CircularProgressIndicator())
+          : _metas.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _metas.length,
+                  itemBuilder: (context, index) {
+                    final meta = _metas[index];
+                    return _buildMetaCard(meta);
+                  },
+                ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primaryPurple,
-        child: const Icon(Icons.add),
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add, color: Colors.white),
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -196,368 +127,332 @@ class _MetasScreenState extends State<MetasScreen>
             ),
           );
           if (result == true) {
-            await _atualizarAposAcao(); // 🔥 Usando o método novo
+            _carregarMetas();
           }
         },
       ),
     );
-  }
-
-  Widget _buildBody() {
-    if (_primeiraCarga) {
-      return const _MetasSkeleton();
-    }
-
-    if (carregando) {
-      return const LoadingIndicator(message: 'Carregando metas...');
-    }
-
-    return metas.isEmpty ? _buildEmptyState() : _buildList();
   }
 
   Widget _buildEmptyState() {
-    return EmptyState(
-      icon: Icons.flag,
-      message: 'Nenhuma meta cadastrada',
-      buttonText: 'Criar meta',
-      onButtonPressed: () async {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.flag_outlined,
+              size: 64,
+              color: AppColors.primary.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Nenhuma meta cadastrada',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Comece definindo seus objetivos financeiros',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          GradientButton(
+            text: 'CRIAR PRIMEIRA META',
+            icon: Icons.add,
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NovaMetaScreen(),
+                ),
+              );
+              if (result == true) {
+                _carregarMetas();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetaCard(Map<String, dynamic> meta) {
+    final titulo = meta['titulo'] ?? 'Sem título';
+    final descricao = meta['descricao'] ?? '';
+    final valorObjetivo = (meta['valor_objetivo'] ?? 0).toDouble();
+    final valorAtual = (meta['valor_atual'] ?? 0).toDouble();
+    final dataFim = DateTime.parse(meta['data_fim']);
+    final concluida = meta['concluida'] == 1;
+    final cor = _getCorPorTipo(meta['cor']);
+    final icone = _getIconePorTipo(meta['icone']);
+
+    final progresso = valorObjetivo > 0 ? valorAtual / valorObjetivo : 0.0;
+    final percentual = (progresso * 100).clamp(0, 100);
+    final falta = (valorObjetivo - valorAtual).clamp(0, valorObjetivo);
+
+    final hoje = DateTime.now();
+    final diasRestantes = dataFim.difference(hoje).inDays;
+
+    Color statusColor = Colors.green;
+    String statusText = 'No prazo';
+
+    if (concluida) {
+      statusColor = Colors.green;
+      statusText = 'Concluída';
+    } else if (diasRestantes < 0) {
+      statusColor = Colors.red;
+      statusText = 'Atrasada';
+    } else if (diasRestantes < 7) {
+      statusColor = Colors.orange;
+      statusText = 'Próximo do fim';
+    }
+
+    return GestureDetector(
+      onTap: () async {
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const NovaMetaScreen(),
+            builder: (context) => DetalhesMetaScreen(meta: meta),
           ),
         );
         if (result == true) {
-          await _atualizarAposAcao(); // 🔥 Usando o método novo
+          _carregarMetas();
         }
       },
-    );
-  }
-
-  Widget _buildList() {
-    return FadeTransition(
-      opacity: _animationController,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(AppSizes.paddingL),
-        itemCount: metas.length,
-        itemBuilder: (context, index) {
-          final meta = metas[index];
-          return _buildMetaCard(meta, index);
-        },
-      ),
-    );
-  }
-
-  Widget _buildMetaCard(Map<String, dynamic> meta, int index) {
-    final valorObjetivo = (meta['valor_objetivo'] ?? 0).toDouble();
-    final valorAtual = (meta['valor_atual'] ?? 0).toDouble();
-    final progresso = valorObjetivo > 0 ? valorAtual / valorObjetivo : 0.0;
-    final percentual = (progresso * 100).clamp(0, 100);
-    final cor = _getCorPorTipo(meta['cor']);
-    final icone = _getIconePorTipo(meta['icone']);
-    final concluida = meta['concluida'] == 1;
-
-    // 🔥 NOVO: Calcular total de depósitos se existir
-    final depositos = meta['depositos'] as List?;
-    final totalDepositos = depositos?.length ?? 0;
-
-    // Animação de entrada em cascata
-    final delay = index * 100;
-
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 500 + delay),
-      curve: Curves.easeOutCubic,
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
       child: ModernCard(
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DetalhesMetaScreen(meta: meta),
-            ),
-          );
-          if (result == true) {
-            await _atualizarAposAcao(); // 🔥 Usando o método novo
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(AppSizes.paddingL),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppSizes.radiusL),
-            border: concluida
-                ? Border.all(color: AppColors.profitGreen, width: 2)
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  // Ícone animado
-                  ScaleTransition(
-                    scale: _animationController.drive(
-                      CurveTween(curve: Curves.elasticOut),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.all(AppSizes.paddingM),
-                      decoration: BoxDecoration(
-                        color: cor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                      ),
-                      child: Icon(icone, color: cor, size: AppSizes.iconM),
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: AppSizes.paddingM),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          meta['titulo'] ?? 'Sem título',
-                          style: AppTextStyles.subtitle2,
-                        ),
-                        if (meta['descricao'] != null &&
-                            meta['descricao'].toString().isNotEmpty)
-                          Text(
-                            meta['descricao'],
-                            style: AppTextStyles.caption,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        // 🔥 NOVO: Mostrar quantidade de depósitos
-                        if (totalDepositos > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              '$totalDepositos ${totalDepositos == 1 ? 'depósito' : 'depósitos'}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (concluida)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingS,
-                          vertical: AppSizes.paddingXS),
-                      decoration: BoxDecoration(
-                        color: AppColors.profitGreen.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.check_circle,
-                              color: AppColors.profitGreen,
-                              size: AppSizes.iconXS),
-                          SizedBox(width: AppSizes.paddingXS),
-                          Text(
-                            'Concluída',
-                            style: TextStyle(
-                              color: AppColors.profitGreen,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSizes.paddingL),
-
-              // Valores
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
+                  child: Icon(icone, color: cor, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Atual',
-                        style: AppTextStyles.caption,
-                      ),
-                      const SizedBox(height: AppSizes.paddingXS),
-                      AnimatedCounter(
-                        value: valorAtual,
-                        formatter: CurrencyFormatter.format,
+                      Text(
+                        titulo,
                         style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          color: AppColors.textPrimary,
                         ),
                       ),
+                      if (descricao.isNotEmpty)
+                        Text(
+                          descricao,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'Meta',
-                        style: AppTextStyles.caption,
+                      Icon(
+                        concluida
+                            ? Icons.check_circle
+                            : diasRestantes < 0
+                                ? Icons.warning
+                                : Icons.schedule,
+                        size: 12,
+                        color: statusColor,
                       ),
-                      const SizedBox(height: AppSizes.paddingXS),
-                      AnimatedCounter(
-                        value: valorObjetivo,
-                        formatter: CurrencyFormatter.format,
-                        style: const TextStyle(
-                          fontSize: 14,
+                      const SizedBox(width: 4),
+                      Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Barra de progresso
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Progresso',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  '${percentual.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: percentual >= 100 ? Colors.green : cor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progresso.clamp(0.0, 1.0),
+                backgroundColor: Colors.grey[200],
+                color: percentual >= 100 ? Colors.green : cor,
+                minHeight: 8,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Valores
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Atual',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    AnimatedCounter(
+                      value: valorAtual,
+                      formatter: Formatador.moeda,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Meta',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      Formatador.moeda(valorObjetivo),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Data e falta
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Até ${Formatador.data(dataFim)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (!concluida && falta > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppSizes.paddingS,
-                      vertical: AppSizes.paddingXS,
+                      horizontal: 8,
+                      vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: percentual >= 100
-                          ? AppColors.profitGreen.withOpacity(0.1)
-                          : cor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: AnimatedCounter(
-                      value: percentual,
-                      formatter: (value) => '${value.toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: percentual >= 100 ? AppColors.profitGreen : cor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSizes.paddingM),
-
-              // Barra de progresso animada
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Stack(
-                    children: [
-                      // Fundo da barra
-                      Container(
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
-                        ),
-                      ),
-                      // Barra de progresso animada
-                      AnimatedBuilder(
-                        animation: _progressAnimationController,
-                        builder: (context, child) {
-                          return Container(
-                            height: 10,
-                            width: constraints.maxWidth *
-                                progresso *
-                                _progressAnimationController.value,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: percentual >= 100
-                                    ? [AppColors.profitGreen, Colors.green]
-                                    : [cor, cor.withOpacity(0.7)],
-                              ),
-                              borderRadius:
-                                  BorderRadius.circular(AppSizes.radiusS),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (percentual >= 100
-                                          ? AppColors.profitGreen
-                                          : cor)
-                                      .withOpacity(0.3),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: AppSizes.paddingM),
-
-              // Informações adicionais
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (meta['data_fim'] != null)
-                    Row(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.calendar_today,
-                            size: AppSizes.iconXS, color: Colors.grey[500]),
-                        const SizedBox(width: AppSizes.paddingXS),
                         Text(
-                          DateFormatter.formatDate(
-                              DateTime.parse(meta['data_fim'])),
-                          style: AppTextStyles.caption,
+                          'Faltam ',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        AnimatedCounter(
+                          value: falta,
+                          formatter: Formatador.moeda,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
                         ),
                       ],
                     ),
-                  Row(
-                    children: [
-                      Icon(Icons.account_balance_wallet,
-                          size: AppSizes.iconXS, color: Colors.grey[500]),
-                      const SizedBox(width: AppSizes.paddingXS),
-                      AnimatedCounter(
-                        value: (valorObjetivo - valorAtual)
-                            .clamp(0, valorObjetivo),
-                        formatter: CurrencyFormatter.format,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF6A1B9A),
-                        ),
-                      ),
-                    ],
                   ),
-                ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
-    );
-  }
-}
-
-// ========== SKELETON LOADING ==========
-class _MetasSkeleton extends StatelessWidget {
-  const _MetasSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(AppSizes.paddingL),
-      itemCount: 3,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: AppSizes.paddingM),
-          child: SkeletonLoader(
-            child: Container(
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppSizes.radiusL),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

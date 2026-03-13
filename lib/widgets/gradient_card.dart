@@ -1,3 +1,5 @@
+// lib/widgets/gradient_card.dart
+
 import 'package:flutter/material.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_colors.dart';
@@ -16,7 +18,7 @@ class GradientCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSizes.paddingXL),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
+          colors: [AppColors.primary, AppColors.secondary],
         ),
         borderRadius: BorderRadius.circular(AppSizes.radiusXXL),
       ),

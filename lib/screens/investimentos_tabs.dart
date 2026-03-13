@@ -1,13 +1,12 @@
 // lib/screens/investimentos_tabs.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../database/db_helper.dart';
-import '../repositories/investimento_repository.dart'; // NOVO
-import '../repositories/provento_repository.dart'; // NOVO
-import '../models/investimento_model.dart'; // NOVO
-import '../models/provento_model.dart'; // NOVO
+import '../repositories/investimento_repository.dart';
+import '../repositories/provento_repository.dart';
+import '../models/investimento_model.dart';
+import '../models/provento_model.dart';
 import '../services/yahoo_finance_service.dart';
 import '../services/notification_service.dart';
 import '../services/performance_service.dart';
@@ -28,12 +27,7 @@ import '../widgets/animated_counter.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
-
-// =============================================================================
-// INVESTIMENTOS TABS SCREEN
-// =============================================================================
+import '../utils/formatters.dart';
 
 class InvestimentosTabsScreen extends StatefulWidget {
   const InvestimentosTabsScreen({super.key});
@@ -45,36 +39,21 @@ class InvestimentosTabsScreen extends StatefulWidget {
 
 class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
-  // ===========================================================================
-  // REPOSITÓRIOS
-  // ===========================================================================
   final InvestimentoRepository _investimentoRepo = InvestimentoRepository();
   final ProventoRepository _proventoRepo = ProventoRepository();
   final YahooFinanceService _yahooService = YahooFinanceService();
 
-  // ===========================================================================
-  // CONTROLADORES
-  // ===========================================================================
   late TabController _tabController;
   late AnimationController _animationController;
 
-  // ===========================================================================
-  // DADOS
-  // ===========================================================================
   List<Investimento> investimentos = [];
   List<Provento> proventos = [];
   List<Map<String, dynamic>> rendaFixa = [];
 
-  // ===========================================================================
-  // ESTADOS
-  // ===========================================================================
   bool carregando = true;
   bool _primeiraCarga = true;
   bool atualizando = false;
 
-  // ===========================================================================
-  // ESTATÍSTICAS
-  // ===========================================================================
   double patrimonioTotal = 0;
   double valorInvestido = 0;
   double ganhoCapital = 0;
@@ -82,18 +61,15 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
   double proventos12Meses = 0;
   final Map<String, double> valorPorTipo = {};
 
-  // ===========================================================================
-  // CORES
-  // ===========================================================================
-  static final Color _profitText = const Color(0xFF4CAF50);
-  static final Color _lossText = const Color(0xFFB71C1C);
-  static final Color _profitBg = const Color(0xFFC8E6C9);
-  static final Color _lossBg = const Color(0xFFFFEBEE);
+  static const Color _profitText = AppColors.success;
+  static const Color _lossText = AppColors.error;
+  static final Color _profitBg = AppColors.success.withOpacity(0.1);
+  static final Color _lossBg = AppColors.error.withOpacity(0.1);
 
   final Map<String, Color> coresPorTipo = {
     'ACAO': Colors.blue,
     'FII': Colors.green,
-    'ETF': Colors.purple,
+    'ETF': AppColors.primary,
     'BDR': Colors.orange,
     'CRIPTO': Colors.amber,
     'RENDA_FIXA': Colors.teal,
@@ -102,9 +78,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
   @override
   bool get wantKeepAlive => true;
 
-  // ===========================================================================
-  // INIT STATE
-  // ===========================================================================
   @override
   void initState() {
     super.initState();
@@ -126,25 +99,19 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     super.dispose();
   }
 
-  // ===========================================================================
-  // CARREGAR DADOS
-  // ===========================================================================
   Future<void> carregarDados() async {
     PerformanceService.start('carregarInvestimentos');
 
     setState(() => carregando = true);
 
     try {
-      // Carregar investimentos como modelos
       final investimentosData =
           await _investimentoRepo.getAllInvestimentosModel();
       investimentos = investimentosData;
 
-      // Carregar proventos
       final proventosData = await _proventoRepo.getAll();
       proventos = proventosData;
 
-      // Carregar renda fixa (ainda como Map, precisa de modelo)
       rendaFixa = await DBHelper().getAllRendaFixa();
 
       _calcularEstatisticas();
@@ -160,9 +127,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     });
   }
 
-  // ===========================================================================
-  // CALCULAR ESTATÍSTICAS
-  // ===========================================================================
   void _calcularEstatisticas() {
     patrimonioTotal = 0;
     valorInvestido = 0;
@@ -173,7 +137,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     final agora = DateTime.now();
     final umAnoAtras = DateTime(agora.year - 1, agora.month, agora.day);
 
-    // Consolidar investimentos para estatísticas
     final investimentosConsolidados =
         _investimentoRepo.consolidarInvestimentos(investimentos);
 
@@ -185,7 +148,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
       valorPorTipo[tipo] = (valorPorTipo[tipo] ?? 0) + item.valorAtual;
     }
 
-    // Calcular renda fixa
     for (var item in rendaFixa) {
       final valorFinal = item['valor_final'] ?? item['valor'] ?? 0;
       patrimonioTotal += valorFinal;
@@ -194,7 +156,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           (valorPorTipo['RENDA_FIXA'] ?? 0) + valorFinal;
     }
 
-    // Calcular dividendos
     for (var p in proventos) {
       dividendosRecebidos += p.totalRecebido;
       if (p.dataPagamento.isAfter(umAnoAtras)) {
@@ -205,9 +166,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     ganhoCapital = patrimonioTotal - valorInvestido;
   }
 
-  // ===========================================================================
-  // CALCULAR EVOLUÇÃO MENSAL
-  // ===========================================================================
   Map<String, Map<String, double>> _calcularEvolucaoMensal() {
     final Map<String, Map<String, double>> evolucao = {};
 
@@ -215,7 +173,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
         _investimentoRepo.consolidarInvestimentos(investimentos);
 
     for (var item in investimentosConsolidados) {
-      final mesAno = DateFormatter.formatMonthShort(item.dataCompra);
+      final mesAno = Formatador.mesAno(item.dataCompra);
 
       if (!evolucao.containsKey(mesAno)) {
         evolucao[mesAno] = {
@@ -233,9 +191,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     return evolucao;
   }
 
-  // ===========================================================================
-  // ATUALIZAR PREÇOS
-  // ===========================================================================
   Future<void> _atualizarPrecos() async {
     setState(() => atualizando = true);
 
@@ -273,28 +228,17 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
         SnackBar(
           content: Text(
               '$atualizados ativos atualizados${comErro > 0 ? ', $comErro erros' : ''}'),
-          backgroundColor: comErro > 0 ? Colors.orange : Colors.green,
+          backgroundColor: comErro > 0 ? AppColors.warning : AppColors.success,
         ),
       );
     }
   }
 
-  // ===========================================================================
-  // MÉTODOS DE FORMATAÇÃO
-  // ===========================================================================
-  String _formatarValor(double valor) => CurrencyFormatter.format(valor);
-
-  String _formatarCompacto(double valor) =>
-      CurrencyFormatter.formatCompact(valor);
-
-  String _formatarPercentual(double valor) =>
-      CurrencyFormatter.formatPercentual(valor);
-
+  String _formatarValor(double valor) => Formatador.moeda(valor);
+  String _formatarCompacto(double valor) => Formatador.moedaCompacta(valor);
+  String _formatarPercentual(double valor) => '${valor.toStringAsFixed(2)}%';
   String _formatarQuantidade(double valor) => valor.toStringAsFixed(0);
 
-  // ===========================================================================
-  // ABRIR DIALOG RENDA FIXA
-  // ===========================================================================
   void _abrirDialogRendaFixa() {
     showDialog(
       context: context,
@@ -313,22 +257,19 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ ${investimento.nome} adicionado!'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Erro: $e'), backgroundColor: AppColors.error),
         );
       }
     }
   }
 
-  // ===========================================================================
-  // MOSTRAR MENU COMPRA/VENDA
-  // ===========================================================================
   void _mostrarMenuCompraVenda() {
     showModalBottomSheet(
       context: context,
@@ -410,18 +351,15 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     }
   }
 
-  // ===========================================================================
-  // BUILD PRINCIPAL
-  // ===========================================================================
   @override
   Widget build(BuildContext context) {
     super.build(context);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Investimentos'),
-        backgroundColor: AppColors.primaryPurple,
+        title: const Text(''),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
@@ -475,7 +413,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           ? Padding(
               padding: const EdgeInsets.only(bottom: 115),
               child: FloatingActionButton(
-                backgroundColor: AppColors.primaryPurple,
+                backgroundColor: AppColors.primary,
                 onPressed: _mostrarMenuCompraVenda,
                 child: Container(
                   width: 56,
@@ -483,12 +421,12 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(colors: [
-                      AppColors.primaryPurple,
-                      AppColors.secondaryPurple,
+                      AppColors.primary,
+                      AppColors.secondary,
                     ]),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primaryPurple.withOpacity(0.3),
+                        color: AppColors.primary.withOpacity(0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -533,9 +471,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // TAB CARTEIRA
-  // ===========================================================================
   Widget _buildCarteiraTab() {
     final investimentosConsolidados =
         _investimentoRepo.consolidarInvestimentos(investimentos);
@@ -548,13 +483,13 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppColors.primaryPurple.withOpacity(0.1),
+                color: AppColors.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.trending_up,
                 size: 64,
-                color: AppColors.primaryPurple,
+                color: AppColors.primary,
               ),
             ),
             const SizedBox(height: 24),
@@ -563,13 +498,13 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1E1E2F),
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Toque no + para adicionar seu primeiro ativo',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -603,9 +538,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // HEADER TURBINADO
-  // ===========================================================================
   Widget _buildHeaderTurbinado(List<Investimento> investimentosConsolidados) {
     double totalInvestido = 0;
     double totalAtual = 0;
@@ -631,12 +563,12 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
+            colors: [AppColors.primary, AppColors.secondary],
           ),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primaryPurple.withOpacity(0.3),
+              color: AppColors.primary.withOpacity(0.3),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -791,9 +723,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // CARD DE ATIVO
-  // ===========================================================================
   Widget _buildAtivoCardTurbinado(Investimento item) {
     final cor = coresPorTipo[item.tipo.nome] ?? Colors.grey;
 
@@ -893,9 +822,9 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                         const SizedBox(height: 4),
                         Text(
                           '${_formatarQuantidade(item.quantidade)} cotas',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -942,7 +871,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                       IconButton(
                         icon: const Icon(
                           Icons.edit,
-                          color: AppColors.primaryPurple,
+                          color: AppColors.primary,
                         ),
                         onPressed: () async {
                           final result = await Navigator.push(
@@ -967,9 +896,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // CARD DE RENDA FIXA
-  // ===========================================================================
   Widget _buildRendaFixaCard(Map<String, dynamic> item) {
     final rendimentoLiquido = (item['rendimento_liquido'] ?? 0).toDouble();
     final valorFinal = (item['valor_final'] ?? item['valor'] ?? 0).toDouble();
@@ -1062,17 +988,17 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Aplicação: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(item['data_aplicacao']))}',
-                          style: TextStyle(
+                          'Aplicação: ${Formatador.data(DateTime.parse(item['data_aplicacao']))}',
+                          style: const TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         Text(
-                          'Vencimento: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(item['data_vencimento']))}',
-                          style: TextStyle(
+                          'Vencimento: ${Formatador.data(DateTime.parse(item['data_vencimento']))}',
+                          style: const TextStyle(
                             fontSize: 12,
-                            color: Colors.orange[700],
+                            color: AppColors.warning,
                           ),
                         ),
                       ],
@@ -1092,7 +1018,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                       ),
                       if (rendimentoLiquido > 0)
                         Text(
-                          '+${_formatarValor(rendimentoLiquido)} (${((rendimentoLiquido / item['valor']) * 100).toStringAsFixed(2)}%)',
+                          '+${_formatarValor(rendimentoLiquido)} (${((rendimentoLiquido / (item['valor'] ?? 1)) * 100).toStringAsFixed(2)}%)',
                           style: TextStyle(
                             fontSize: 11,
                             color: _profitText,
@@ -1105,7 +1031,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                             icon: const Icon(
                               Icons.edit,
                               size: 18,
-                              color: Color(0xFF6A1B9A),
+                              color: AppColors.primary,
                             ),
                             onPressed: () => _editarRendaFixa(item),
                           ),
@@ -1113,7 +1039,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                             icon: const Icon(
                               Icons.delete,
                               size: 18,
-                              color: Colors.red,
+                              color: AppColors.error,
                             ),
                             onPressed: () => _excluirRendaFixa(item),
                           ),
@@ -1131,21 +1057,19 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
   }
 
   void _mostrarDetalhesRendaFixa(Map<String, dynamic> item) {
-    // TODO: Implementar detalhes de renda fixa
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Detalhes de renda fixa em desenvolvimento'),
-        backgroundColor: Colors.orange,
+        backgroundColor: AppColors.warning,
       ),
     );
   }
 
   void _editarRendaFixa(Map<String, dynamic> item) {
-    // TODO: Implementar edição de renda fixa
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Edição de renda fixa em desenvolvimento'),
-        backgroundColor: Colors.orange,
+        backgroundColor: AppColors.warning,
       ),
     );
   }
@@ -1170,12 +1094,12 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('✅ Renda Fixa excluída!'),
-                    backgroundColor: Colors.green,
+                    backgroundColor: AppColors.success,
                   ),
                 );
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('Excluir'),
           ),
         ],
@@ -1183,9 +1107,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // TAB ANÁLISE
-  // ===========================================================================
   Widget _buildAnaliseTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1207,9 +1128,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // CARD PATRIMÔNIO
-  // ===========================================================================
   Widget _buildCardPatrimonio() {
     final variacaoPercentual =
         valorInvestido > 0 ? (ganhoCapital / valorInvestido) * 100 : 0.0;
@@ -1220,9 +1138,9 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary, AppColors.secondary],
           ),
         ),
         child: Column(
@@ -1290,9 +1208,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // CARD LUCRO
-  // ===========================================================================
   Widget _buildCardLucro() {
     return Card(
       elevation: 2,
@@ -1312,11 +1227,11 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                 Expanded(
                   child: Column(
                     children: [
-                      Text(
+                      const Text(
                         'Ganho Capital',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1340,11 +1255,11 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                 Expanded(
                   child: Column(
                     children: [
-                      Text(
+                      const Text(
                         'Dividendos',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1382,7 +1297,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      color: Color(0xFF6A1B9A),
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
@@ -1394,9 +1309,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // CARD PROVENTOS RESUMO
-  // ===========================================================================
   Widget _buildCardProventosResumo() {
     return Card(
       elevation: 2,
@@ -1409,9 +1321,10 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'PROVENTOS (12M)',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 8),
                   AnimatedCounter(
@@ -1426,7 +1339,8 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                   const SizedBox(height: 4),
                   Text(
                     'Total: ${_formatarValor(dividendosRecebidos)}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textHint),
                   ),
                 ],
               ),
@@ -1434,12 +1348,12 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.primaryPurple.withOpacity(0.1),
+                color: AppColors.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.monetization_on,
-                color: AppColors.primaryPurple,
+                color: AppColors.primary,
                 size: 32,
               ),
             ),
@@ -1449,9 +1363,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // GRÁFICO EVOLUÇÃO
-  // ===========================================================================
+  // 🔥 MÉTODO CORRIGIDO - _buildGraficoEvolucao
   Widget _buildGraficoEvolucao() {
     final evolucao = _calcularEvolucaoMensal();
 
@@ -1468,14 +1380,14 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               children: [
                 Icon(Icons.show_chart, size: 48, color: Colors.grey[400]),
                 const SizedBox(height: 16),
-                Text(
+                const Text(
                   'Sem dados históricos',
-                  style: TextStyle(color: Colors.grey[600]),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'Adicione investimentos com datas diferentes',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  style: TextStyle(fontSize: 12, color: AppColors.textHint),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -1485,25 +1397,41 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
       );
     }
 
-    // Ordenar meses
-    var mesesOrdenados = evolucao.keys.toList()
-      ..sort((a, b) {
+    var mesesOrdenados = evolucao.keys.toList();
+
+    // 🔥 CORREÇÃO: Verificar se a lista não está vazia
+    if (mesesOrdenados.isNotEmpty) {
+      mesesOrdenados.sort((a, b) {
         final aParts = a.split('/');
         final bParts = b.split('/');
 
-        final aAno = int.parse('20${aParts[1]}');
-        final bAno = int.parse('20${bParts[1]}');
+        // Garantir que temos pelo menos 2 partes
+        if (aParts.length < 2 || bParts.length < 2) return 0;
+
+        final aAno = int.tryParse('20${aParts[1]}') ?? 0;
+        final bAno = int.tryParse('20${bParts[1]}') ?? 0;
         final aMes = _getMesNumero(aParts[0]);
         final bMes = _getMesNumero(bParts[0]);
 
         if (aAno != bAno) return aAno.compareTo(bAno);
         return aMes.compareTo(bMes);
       });
+    } else {
+      return const SizedBox.shrink();
+    }
 
-    final valoresPatrimonio =
-        mesesOrdenados.map((m) => evolucao[m]!['patrimonio']!).toList();
-    final valoresInvestido =
-        mesesOrdenados.map((m) => evolucao[m]!['investido']!).toList();
+    final valoresPatrimonio = <double>[];
+    final valoresInvestido = <double>[];
+
+    for (var mes in mesesOrdenados) {
+      valoresPatrimonio.add(evolucao[mes]!['patrimonio']!);
+      valoresInvestido.add(evolucao[mes]!['investido']!);
+    }
+
+    // 🔥 CORREÇÃO: Verificar se há valores antes de calcular maxY
+    final maxPatrimonio = valoresPatrimonio.isNotEmpty
+        ? valoresPatrimonio.reduce((a, b) => a > b ? a : b)
+        : 1.0;
 
     return Card(
       elevation: 2,
@@ -1523,7 +1451,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  maxY: valoresPatrimonio.reduce((a, b) => a > b ? a : b) * 1.2,
+                  maxY: maxPatrimonio * 1.2,
                   barTouchData: BarTouchData(
                     enabled: true,
                     touchTooltipData: BarTouchTooltipData(
@@ -1588,7 +1516,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                       barRods: [
                         BarChartRodData(
                           toY: valoresPatrimonio[index],
-                          color: AppColors.primaryPurple,
+                          color: AppColors.primary,
                           width: 16,
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -1608,7 +1536,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildLegendaCor('Patrimônio', AppColors.primaryPurple),
+                _buildLegendaCor('Patrimônio', AppColors.primary),
                 const SizedBox(width: 20),
                 _buildLegendaCor('Investido', Colors.blue),
               ],
@@ -1637,9 +1565,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     return meses[mesTexto.toLowerCase()] ?? 1;
   }
 
-  // ===========================================================================
-  // ALOCAÇÃO EXPANSÍVEL
-  // ===========================================================================
   Widget _buildAlocacaoExpansivel() {
     final investimentosConsolidados =
         _investimentoRepo.consolidarInvestimentos(investimentos);
@@ -1701,7 +1626,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               _buildExpansionCategoria(
                 '📊 ETFs',
                 Icons.show_chart,
-                Colors.purple,
+                AppColors.primary,
                 investimentosPorTipo['ETF']!,
               ),
             if (investimentosPorTipo.containsKey('BDR'))
@@ -1755,7 +1680,8 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           ),
           subtitle: Text(
             '${ativos.length} ativos • Total: ${_formatarValor(totalCategoria)}',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           initiallyExpanded: false,
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1789,7 +1715,8 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
             flex: 2,
             child: Text(
               '${_formatarQuantidade(ativo.quantidade)} ${ativo.quantidade == 1 ? 'operação' : 'operações'}',
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
           ),
           Expanded(
@@ -1821,9 +1748,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ===========================================================================
-  // CARD ALOCAÇÃO
-  // ===========================================================================
   Widget _buildCardAlocacao() {
     final total = valorPorTipo.values.fold(0.0, (a, b) => a + b);
 
@@ -1917,16 +1841,13 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
         const SizedBox(width: 4),
         Text(
           texto,
-          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
       ],
     );
   }
 }
 
-// =============================================================================
-// SKELETON LOADING
-// =============================================================================
 class _InvestimentosSkeleton extends StatelessWidget {
   const _InvestimentosSkeleton();
 

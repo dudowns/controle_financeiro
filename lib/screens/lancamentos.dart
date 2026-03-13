@@ -1,16 +1,13 @@
 // lib/screens/lancamentos.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../repositories/lancamento_repository.dart'; // NOVO: import do repositório
-import '../models/lancamento_model.dart'; // NOVO: import do modelo
+import '../repositories/lancamento_repository.dart';
+import '../models/lancamento_model.dart';
 import 'nova_transacao.dart';
 import 'editar_transacao.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
-import '../constants/app_text_styles.dart';
-import '../constants/app_animations.dart';
 import '../widgets/primary_card.dart';
 import '../widgets/modern_card.dart';
 import '../widgets/gradient_button.dart';
@@ -18,11 +15,9 @@ import '../widgets/animated_counter.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
+import '../utils/formatters.dart';
 import '../services/performance_service.dart';
 
-// Enum para ordenação
 enum Ordenacao { dataDesc, dataAsc, valorDesc, valorAsc }
 
 class LancamentosScreen extends StatefulWidget {
@@ -34,13 +29,12 @@ class LancamentosScreen extends StatefulWidget {
 
 class _LancamentosScreenState extends State<LancamentosScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
-  // 🔥 MUDANÇA 1: Usar o repositório
   final LancamentoRepository _lancamentoRepo = LancamentoRepository();
 
   List<Map<String, dynamic>> lancamentos = [];
   List<Map<String, dynamic>>? _lancamentosFiltradosCache;
 
-  Map<String, dynamic>? _resumoMes; // 🔥 NOVO: cache do resumo do mês
+  Map<String, dynamic>? _resumoMes;
 
   bool carregando = true;
   bool _primeiraCarga = true;
@@ -48,10 +42,8 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   int _paginaAtual = 1;
   final ScrollController _scrollController = ScrollController();
 
-  // Animações
   late AnimationController _animationController;
 
-  // Filtros
   String filtroTipo = 'Todos';
   String filtroCategoria = 'Todas';
   DateTime? dataInicio;
@@ -100,7 +92,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     }
   }
 
-  // 🔥 MUDANÇA 2: Carregar lançamentos usando o repositório
   Future<void> _carregarLancamentos() async {
     if (!mounted) return;
 
@@ -116,7 +107,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       _lancamentosFiltradosCache = null;
       _temMaisItens = lancamentos.length >= 20;
 
-      // 🔥 NOVO: Carregar resumo do mês atual
       await _carregarResumoMes();
 
       PerformanceService.stop('carregarLancamentos');
@@ -132,7 +122,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     }
   }
 
-  // 🔥 NOVO: Carregar resumo do mês
   Future<void> _carregarResumoMes() async {
     try {
       _resumoMes = await _lancamentoRepo.getResumoDoMes(DateTime.now());
@@ -172,7 +161,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensagem),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -278,10 +267,10 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     super.build(context);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Lançamentos'),
-        backgroundColor: AppColors.primaryPurple,
+        title: const Text(''),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -303,7 +292,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primaryPurple,
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
         onPressed: () async {
           final result = await Navigator.push(
@@ -344,9 +333,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     );
   }
 
-  // 🔥 MUDANÇA 3: Card de resumo usando dados do repositório
   Widget _buildResumoCard() {
-    // Se tiver resumo do mês, usar ele, senão calcular dos filtrados
     final receitas = _resumoMes?['receitas'] ?? _totalReceitas;
     final despesas = _resumoMes?['despesas'] ?? _totalDespesas;
     final saldo = _resumoMes?['saldo'] ?? _saldo;
@@ -356,7 +343,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       padding: const EdgeInsets.all(AppSizes.paddingXL),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
+          colors: [AppColors.primary, AppColors.secondary],
         ),
         borderRadius: BorderRadius.circular(AppSizes.radiusXXL),
       ),
@@ -375,8 +362,12 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                   const SizedBox(height: AppSizes.paddingXS),
                   AnimatedCounter(
                     value: saldo,
-                    formatter: CurrencyFormatter.format,
-                    style: AppTextStyles.moneyMedium,
+                    formatter: Formatador.moeda,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -390,7 +381,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                   borderRadius: BorderRadius.circular(AppSizes.radiusXL),
                 ),
                 child: Text(
-                  DateFormatter.formatMonth(DateTime.now()),
+                  Formatador.mesAno(DateTime.now()),
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
@@ -404,7 +395,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                   'Receitas',
                   receitas,
                   Icons.arrow_upward,
-                  Colors.green,
+                  AppColors.success,
                 ),
               ),
               const SizedBox(width: AppSizes.paddingM),
@@ -413,7 +404,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                   'Despesas',
                   despesas,
                   Icons.arrow_downward,
-                  Colors.red,
+                  AppColors.error,
                 ),
               ),
             ],
@@ -444,7 +435,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
               ),
               AnimatedCounter(
                 value: valor,
-                formatter: CurrencyFormatter.format,
+                formatter: Formatador.moeda,
                 style: TextStyle(
                   color: cor,
                   fontSize: 14,
@@ -467,9 +458,9 @@ class _LancamentosScreenState extends State<LancamentosScreen>
           Expanded(
             child: Text(
               _textoFiltrosAtivos,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: AppColors.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -574,12 +565,12 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.filter_alt,
-              size: AppSizes.iconXL, color: Colors.grey.shade400),
+          const Icon(Icons.filter_alt,
+              size: AppSizes.iconXL, color: AppColors.textHint),
           const SizedBox(height: AppSizes.paddingL),
-          Text(
+          const Text(
             'Nenhum resultado com os filtros atuais',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSizes.paddingS),
           GradientButton(
@@ -642,19 +633,18 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     return ListTile(
       leading: Icon(
         icone,
-        color: _ordenacaoAtual == valor ? AppColors.primaryPurple : Colors.grey,
+        color: _ordenacaoAtual == valor ? AppColors.primary : Colors.grey,
       ),
       title: Text(
         titulo,
         style: TextStyle(
-          color:
-              _ordenacaoAtual == valor ? AppColors.primaryPurple : Colors.black,
+          color: _ordenacaoAtual == valor ? AppColors.primary : Colors.black,
           fontWeight:
               _ordenacaoAtual == valor ? FontWeight.bold : FontWeight.normal,
         ),
       ),
       trailing: _ordenacaoAtual == valor
-          ? const Icon(Icons.check, color: AppColors.primaryPurple)
+          ? const Icon(Icons.check, color: AppColors.primary)
           : null,
       onTap: () {
         setState(() {
@@ -690,8 +680,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                           TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: AppSizes.paddingXL),
-
-                    // Tipo
                     const Text('Tipo',
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: AppSizes.paddingS),
@@ -709,10 +697,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                         );
                       }).toList(),
                     ),
-
                     const SizedBox(height: AppSizes.paddingL),
-
-                    // Categoria
                     const Text('Categoria',
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: AppSizes.paddingS),
@@ -730,10 +715,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                         );
                       }).toList(),
                     ),
-
                     const SizedBox(height: AppSizes.paddingL),
-
-                    // Período
                     const Text('Período',
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: AppSizes.paddingS),
@@ -756,10 +738,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                         ),
                       ],
                     ),
-
                     const SizedBox(height: AppSizes.paddingXL),
-
-                    // Botões
                     Row(
                       children: [
                         Expanded(
@@ -827,7 +806,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
               child: Text(
                 data == null ? label : DateFormat('dd/MM/yyyy').format(data),
                 style: TextStyle(
-                  color: data == null ? Colors.grey : Colors.black,
+                  color: data == null ? AppColors.textHint : Colors.black,
                 ),
               ),
             ),
@@ -837,8 +816,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     );
   }
 }
-
-// ========== WIDGETS OTIMIZADOS ==========
 
 class _LancamentoCard extends StatelessWidget {
   final Map<String, dynamic> item;
@@ -853,7 +830,7 @@ class _LancamentoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tipoLower = item['tipo']?.toString().toLowerCase() ?? '';
     final isReceita = tipoLower == 'receita' || tipoLower == 'receitas';
-    final cor = isReceita ? AppColors.profitGreen : AppColors.lossRed;
+    final cor = isReceita ? AppColors.success : AppColors.error;
     final icone = isReceita ? Icons.arrow_upward : Icons.arrow_downward;
 
     return AnimatedContainer(
@@ -918,10 +895,10 @@ class _LancamentoCard extends StatelessWidget {
                       ),
                       const SizedBox(width: AppSizes.paddingS),
                       Text(
-                        DateFormatter.formatDate(DateTime.parse(item['data'])),
-                        style: TextStyle(
+                        Formatador.data(DateTime.parse(item['data'])),
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -931,7 +908,7 @@ class _LancamentoCard extends StatelessWidget {
             ),
             AnimatedCounter(
               value: item['valor']?.toDouble() ?? 0,
-              formatter: CurrencyFormatter.format,
+              formatter: Formatador.moeda,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -952,7 +929,6 @@ class _LancamentosSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Card resumo skeleton
         Container(
           margin: const EdgeInsets.all(AppSizes.paddingL),
           padding: const EdgeInsets.all(AppSizes.paddingXL),
@@ -1006,8 +982,6 @@ class _LancamentosSkeleton extends StatelessWidget {
             ],
           ),
         ),
-
-        // Lista skeleton
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(AppSizes.paddingL),

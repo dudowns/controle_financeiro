@@ -12,8 +12,7 @@ import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 import '../widgets/primary_card.dart';
 import '../widgets/info_row.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
+import '../utils/formatters.dart';
 
 class DetalhesAtivoScreen extends StatefulWidget {
   final Map<String, dynamic> ativo;
