@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
 import '../models/lancamento_model.dart';
-import '../constants/app_colors.dart';
+import '../constants/app_colors.dart'; // 🔥 ESSENCIAL!
 import '../constants/app_sizes.dart';
 import '../utils/formatters.dart';
 
@@ -27,16 +27,9 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
   double _valor = 0.0;
 
   final List<String> _tipos = ['receita', 'gasto'];
-  final List<String> _categorias = [
-    'Alimentação',
-    'Transporte',
-    'Moradia',
-    'Saúde',
-    'Educação',
-    'Lazer',
-    'Investimentos',
-    'Outros'
-  ];
+
+  // 🔥 CATEGORIAS VINDAS DIRETAMENTE DO AppColors!
+  final List<String> _categorias = AppColors.categoryColors.keys.toList();
 
   @override
   void dispose() {
@@ -68,7 +61,8 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
         'descricao': _descricaoController.text,
         'valor': _valor,
         'tipo': _tipoSelecionado,
-        'categoria': _categoriaSelecionada,
+        'categoria':
+            _categoriaSelecionada, // 🔥 Agora sempre uma categoria válida!
         'data': _dataSelecionada.toIso8601String(),
         'observacao': _observacaoController.text,
       };
@@ -207,7 +201,7 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
 
               const SizedBox(height: 16),
 
-              // Categoria
+              // 🔥 Categoria - AGORA VEM DO AppColors!
               DropdownButtonFormField<String>(
                 value: _categoriaSelecionada,
                 decoration: const InputDecoration(
@@ -218,7 +212,21 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
                 items: _categorias.map((categoria) {
                   return DropdownMenuItem(
                     value: categoria,
-                    child: Text(categoria),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: AppColors.categoryColors[categoria] ??
+                                AppColors.categoryColors['Outros']!,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(categoria),
+                      ],
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {

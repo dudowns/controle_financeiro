@@ -15,7 +15,7 @@ class ContasDoMesScreen extends StatefulWidget {
 
 class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
   final DBHelper _dbHelper = DBHelper();
-  DateTime _mesSelecionado = DateTime(2026, 3);
+  DateTime _mesSelecionado = DateTime.now();
   List<PagamentoMes> _pagamentos = [];
   Map<String, dynamic> _resumo = {};
   bool _carregando = true;
@@ -63,7 +63,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     if (sucesso && mounted) {
       _carregarDados();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${pagamento.contaNome} paga!'),
+        content: Text('✅ ${pagamento.contaNome} paga!'),
         backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
       ));
@@ -75,7 +75,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(''), // ✅ ÚNICO TÍTULO!
+        title: const Text('Contas do Mês'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -86,7 +86,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
               children: [
                 const SizedBox(height: 16),
 
-                // Seletor de mês (sem título)
+                // Seletor de mês
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
@@ -257,6 +257,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
 
         final contaData = snapshot.data;
         final isParcelada = contaData?['tipo'] == 'parcelada';
+        final categoria = contaData?['categoria'] as String? ?? 'Outros';
 
         String? infoParcela;
         if (isParcelada && contaData != null) {
@@ -279,13 +280,17 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
         }
 
         final atrasado = pagamento.estaAtrasado && !pagamento.estaPago;
+
+        // 🔥 COR DA CATEGORIA (suporte a empréstimos!)
+        final Color corCategoria = AppColors.getCategoryColor(categoria);
+
         final cor = pagamento.estaPago
             ? AppColors.success
-            : (atrasado ? AppColors.error : AppColors.primary);
+            : (atrasado ? AppColors.error : corCategoria);
 
         final corFundo = pagamento.estaPago
             ? AppColors.successLight
-            : (atrasado ? AppColors.errorLight : AppColors.primaryLight);
+            : (atrasado ? AppColors.errorLight : corCategoria.withOpacity(0.1));
 
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
@@ -297,7 +302,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
           ),
           child: Row(
             children: [
-              // Ícone do card
+              // Ícone do card com cor da categoria
               Container(
                 width: 48,
                 height: 48,
@@ -329,12 +334,36 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      'Vence ${pagamento.dataVencimentoFormatada}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: corCategoria,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          categoria,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.calendar_today,
+                            size: 10, color: AppColors.textSecondary),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Vence ${pagamento.dataVencimentoFormatada}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

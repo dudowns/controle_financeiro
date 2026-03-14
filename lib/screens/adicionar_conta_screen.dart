@@ -11,7 +11,7 @@ enum TipoConta {
 }
 
 class AdicionarContaScreen extends StatefulWidget {
-  final Map<String, dynamic>? contaExistente; // ✅ ADICIONADO para edição
+  final Map<String, dynamic>? contaExistente;
 
   const AdicionarContaScreen({super.key, this.contaExistente});
 
@@ -33,8 +33,9 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
   int? _parcelasTotal;
   DateTime _dataInicio = DateTime.now();
 
-  bool _editando = false; // ✅ NOVO: controlar modo edição
+  bool _editando = false;
 
+  // 🔥 CATEGORIAS ATUALIZADAS COM EMPRÉSTIMOS
   final List<String> _categorias = [
     'Água',
     'Luz',
@@ -48,13 +49,15 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
     'Escola',
     'Academia',
     'Streaming',
+    'Empréstimo',
+    'Financiamento',
+    'Cartão de Crédito',
     'Outros',
   ];
 
   @override
   void initState() {
     super.initState();
-    // ✅ NOVO: Se for edição, carregar dados
     if (widget.contaExistente != null) {
       _editando = true;
       _nomeController.text = widget.contaExistente!['nome'] ?? '';
@@ -125,7 +128,6 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
       };
 
       if (_editando) {
-        // ✅ NOVO: Atualizar conta existente
         await _dbHelper.update(
             DBHelper.tabelaContas, conta, widget.contaExistente!['id']);
 
@@ -140,7 +142,6 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
           );
         }
       } else {
-        // Inserir nova conta
         await _dbHelper.adicionarConta(conta);
 
         if (mounted) {
@@ -173,8 +174,7 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            _editando ? 'Editar Conta' : 'Nova Conta'), // ✅ Título dinâmico
+        title: Text(_editando ? 'Editar Conta' : 'Nova Conta'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
@@ -214,7 +214,7 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
                 controller: _nomeController,
                 decoration: InputDecoration(
                   labelText: 'Nome da conta',
-                  hintText: 'Ex: IPVA, Netflix, Celular...',
+                  hintText: 'Ex: IPVA, Netflix, Empréstimo...',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -351,14 +351,25 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
                               value: _categoriaSelecionada,
                               hint: const Text('Selecione'),
                               isExpanded: true,
-                              items: [
-                                ..._categorias.map((c) {
-                                  return DropdownMenuItem(
-                                    value: c,
-                                    child: Text(c),
-                                  );
-                                }),
-                              ],
+                              items: _categorias.map((c) {
+                                return DropdownMenuItem(
+                                  value: c,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 12,
+                                        height: 12,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.getCategoryColor(c),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(c),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
                               onChanged: (value) {
                                 setState(() {
                                   _categoriaSelecionada = value;

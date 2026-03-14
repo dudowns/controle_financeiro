@@ -103,7 +103,9 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     });
 
     try {
-      lancamentos = await _lancamentoRepo.getAllLancamentos();
+      // 🔥 CORRIGIDO: criar nova lista em vez de modificar
+      final novosLancamentos = await _lancamentoRepo.getAllLancamentos();
+      lancamentos = [...novosLancamentos];
       _lancamentosFiltradosCache = null;
       _temMaisItens = lancamentos.length >= 20;
 
@@ -144,7 +146,8 @@ class _LancamentosScreenState extends State<LancamentosScreen>
 
       if (mounted) {
         setState(() {
-          lancamentos.addAll(maisLancamentos);
+          // 🔥 CORRIGIDO: usar spread operator para criar nova lista
+          lancamentos = [...lancamentos, ...maisLancamentos];
           _paginaAtual++;
           _temMaisItens = maisLancamentos.length >= 20;
           _lancamentosFiltradosCache = null;
@@ -269,7 +272,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(''),
+        title: const Text('Lançamentos'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
