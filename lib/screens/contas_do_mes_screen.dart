@@ -70,7 +70,6 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     }
   }
 
-  // 🔥 NOVO: Função para excluir conta
   Future<void> _excluirConta(int contaId, String nomeConta) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -303,29 +302,54 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
         }
 
         final contaData = snapshot.data;
-        final isParcelada = contaData?['tipo'] == 'parcelada';
         final categoria = contaData?['categoria'] as String? ?? 'Outros';
 
-        // 🔥 CORREÇÃO: Cálculo correto das parcelas
+        // 🔥 CORREÇÃO DEFINITIVA - Cálculo de parcelas
         String? infoParcela;
-        if (isParcelada && contaData != null) {
+
+        if (contaData != null) {
           try {
             final dataInicio =
                 DateTime.parse(contaData['data_inicio'] as String);
-            final totalParcelas = contaData['parcelas_total'] as int? ?? 0;
+            final totalParcelas = contaData['parcelas_total'] as int?;
+            final parcelasPagas = contaData['parcelas_pagas'] as int? ?? 0;
+            final tipo = contaData['tipo'] as String? ?? 'mensal';
 
-            // Calcular qual parcela é esta com base no mês
-            final mesInicio = dataInicio.year * 100 + dataInicio.month;
-            final mesAtual = pagamento.anoMes;
+            // Log para debug (remova depois)
+            debugPrint('📊 Conta: ${pagamento.contaNome}');
+            debugPrint('   - totalParcelas: $totalParcelas');
+            debugPrint('   - parcelasPagas: $parcelasPagas');
+            debugPrint('   - tipo: $tipo');
+            debugPrint('   - dataInicio: $dataInicio');
+            debugPrint('   - mesAtual: ${pagamento.anoMes}');
 
-            if (mesAtual >= mesInicio) {
-              final parcelaAtual = (mesAtual - mesInicio) + 1;
-              if (parcelaAtual <= totalParcelas) {
-                infoParcela = '$parcelaAtual/$totalParcelas';
+            // Verifica se é parcelada (pelo tipo OU se tem totalParcelas > 0)
+            final ehParcelada = tipo == 'parcelada' ||
+                (totalParcelas != null && totalParcelas > 0);
+
+            if (ehParcelada) {
+              final mesInicio = dataInicio.year * 100 + dataInicio.month;
+              final mesAtual = pagamento.anoMes;
+
+              if (mesAtual >= mesInicio) {
+                final parcelaAtual = (mesAtual - mesInicio) + 1;
+
+                // Se tem totalParcelas, mostra completo
+                if (totalParcelas != null && totalParcelas > 0) {
+                  if (parcelaAtual <= totalParcelas) {
+                    infoParcela = '$parcelaAtual/$totalParcelas';
+                    debugPrint('   ✅ Parcela calculada: $infoParcela');
+                  }
+                }
+                // Se não tem total, mostra apenas a atual
+                else {
+                  infoParcela = '$parcelaAtual/?';
+                  debugPrint('   ⚠️ Parcela parcial: $infoParcela');
+                }
               }
             }
           } catch (e) {
-            debugPrint('Erro ao calcular parcela: $e');
+            debugPrint('❌ Erro ao calcular parcela: $e');
           }
         }
 
@@ -403,7 +427,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        // 🔥 Badge de parcela (AGORA FUNCIONA!)
+                        // 🔥 Badge de parcela (agora funcionando!)
                         if (infoParcela != null)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -478,7 +502,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                           ),
                         ),
 
-                      // 🔥 Botão EXCLUIR (sempre visível)
+                      // Botão EXCLUIR
                       IconButton(
                         icon: const Icon(Icons.delete_outline, size: 18),
                         color: Colors.red[300],
