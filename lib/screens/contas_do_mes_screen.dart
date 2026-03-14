@@ -70,6 +70,53 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     }
   }
 
+  // 🔥 NOVO: Função para excluir conta
+  Future<void> _excluirConta(int contaId, String nomeConta) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Conta'),
+        content: Text(
+            'Deseja realmente excluir a conta "$nomeConta"?\n\nTodos os pagamentos futuros serão removidos.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      try {
+        await _dbHelper.deletarConta(contaId);
+        if (mounted) {
+          _carregarDados();
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('🗑️ Conta "$nomeConta" excluída!'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Erro ao excluir: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,29 +306,31 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
         final isParcelada = contaData?['tipo'] == 'parcelada';
         final categoria = contaData?['categoria'] as String? ?? 'Outros';
 
+        // 🔥 CORREÇÃO: Cálculo correto das parcelas
         String? infoParcela;
         if (isParcelada && contaData != null) {
           try {
             final dataInicio =
                 DateTime.parse(contaData['data_inicio'] as String);
+            final totalParcelas = contaData['parcelas_total'] as int? ?? 0;
+
+            // Calcular qual parcela é esta com base no mês
             final mesInicio = dataInicio.year * 100 + dataInicio.month;
             final mesAtual = pagamento.anoMes;
 
             if (mesAtual >= mesInicio) {
               final parcelaAtual = (mesAtual - mesInicio) + 1;
-              final totalParcelas = contaData['parcelas_total'] as int? ?? 0;
               if (parcelaAtual <= totalParcelas) {
                 infoParcela = '$parcelaAtual/$totalParcelas';
               }
             }
           } catch (e) {
-            // ignora erro
+            debugPrint('Erro ao calcular parcela: $e');
           }
         }
 
         final atrasado = pagamento.estaAtrasado && !pagamento.estaPago;
 
-        // 🔥 COR DA CATEGORIA (suporte a empréstimos!)
         final Color corCategoria = AppColors.getCategoryColor(categoria);
 
         final cor = pagamento.estaPago
@@ -302,7 +351,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
           ),
           child: Row(
             children: [
-              // Ícone do card com cor da categoria
+              // Ícone do card
               Container(
                 width: 48,
                 height: 48,
@@ -319,7 +368,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
               ),
               const SizedBox(width: 16),
 
-              // Nome da conta e vencimento
+              // Informações da conta
               Expanded(
                 flex: 2,
                 child: Column(
@@ -334,8 +383,11 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
+                        // Círculo da categoria
                         Container(
                           width: 10,
                           height: 10,
@@ -344,7 +396,6 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 6),
                         Text(
                           categoria,
                           style: TextStyle(
@@ -352,44 +403,39 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Icon(Icons.calendar_today,
-                            size: 10, color: AppColors.textSecondary),
-                        const SizedBox(width: 2),
-                        Text(
-                          'Vence ${pagamento.dataVencimentoFormatada}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
+                        // 🔥 Badge de parcela (AGORA FUNCIONA!)
+                        if (infoParcela != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              infoParcela,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Vence ${pagamento.dataVencimentoFormatada}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              // Badge de parcela (se for parcelada)
-              if (infoParcela != null)
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    infoParcela,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-
-              // Valor e botão PAGAR
+              // Valor e ações
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -401,31 +447,51 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                       color: cor,
                     ),
                   ),
-                  if (!pagamento.estaPago) const SizedBox(height: 8),
-                  if (!pagamento.estaPago)
-                    SizedBox(
-                      width: 70,
-                      height: 32,
-                      child: ElevatedButton(
-                        onPressed: () => _pagarConta(pagamento),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Botão PAGAR
+                      if (!pagamento.estaPago)
+                        SizedBox(
+                          width: 60,
+                          height: 28,
+                          child: ElevatedButton(
+                            onPressed: () => _pagarConta(pagamento),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              elevation: 0,
+                              minimumSize: const Size(60, 28),
+                            ),
+                            child: const Text(
+                              'PAGAR',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                          elevation: 0,
                         ),
-                        child: const Text(
-                          'PAGAR',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
+
+                      // 🔥 Botão EXCLUIR (sempre visível)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        color: Colors.red[300],
+                        onPressed: () => _excluirConta(
+                            pagamento.contaId, pagamento.contaNome),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
                         ),
                       ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             ],
