@@ -2,11 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../models/lancamento_model.dart';
 import '../constants/app_colors.dart';
-import '../constants/app_sizes.dart';
+import '../constants/app_categories.dart'; // 🔥 NOVO!
 import '../utils/formatters.dart';
-import '../widgets/gradient_button.dart';
 
 class EditarTransacaoScreen extends StatefulWidget {
   final Map<String, dynamic> lancamento;
@@ -30,16 +28,13 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
   late double _valor;
 
   final List<String> _tipos = ['receita', 'gasto'];
-  final List<String> _categorias = [
-    'Alimentação',
-    'Transporte',
-    'Moradia',
-    'Saúde',
-    'Educação',
-    'Lazer',
-    'Investimentos',
-    'Outros'
-  ];
+
+  // 🔥 Listas dinâmicas baseadas no tipo
+  List<String> get _categoriasDisponiveis {
+    return _tipoSelecionado == 'receita'
+        ? AppCategories.receitas
+        : AppCategories.gastos;
+  }
 
   @override
   void initState() {
@@ -193,10 +188,7 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
               // Tipo
               const Text(
                 'Tipo',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Row(
@@ -224,6 +216,8 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
                         onSelected: (selected) {
                           setState(() {
                             _tipoSelecionado = tipo;
+                            // 🔥 Reset categoria ao mudar tipo
+                            _categoriaSelecionada = 'Outros';
                           });
                         },
                       ),
@@ -278,7 +272,7 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
 
               const SizedBox(height: 16),
 
-              // Categoria - CORRIGIDO!
+              // 🔥 Categoria - DINÂMICA por tipo!
               DropdownButtonFormField<String>(
                 value: _categoriaSelecionada,
                 decoration: const InputDecoration(
@@ -286,10 +280,23 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
-                items: _categorias.map((categoria) {
+                items: _categoriasDisponiveis.map((categoria) {
                   return DropdownMenuItem(
                     value: categoria,
-                    child: Text(categoria),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: AppCategories.getColor(categoria),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(categoria),
+                      ],
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {

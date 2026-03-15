@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_categories.dart'; // 🔥 NOVO!
 import '../widgets/gradient_button.dart';
 
 enum TipoConta {
@@ -35,25 +36,8 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
 
   bool _editando = false;
 
-  // 🔥 CATEGORIAS ATUALIZADAS COM EMPRÉSTIMOS
-  final List<String> _categorias = [
-    'Água',
-    'Luz',
-    'Internet',
-    'Telefone',
-    'Aluguel',
-    'Condomínio',
-    'IPVA',
-    'IPTU',
-    'Seguro',
-    'Escola',
-    'Academia',
-    'Streaming',
-    'Empréstimo',
-    'Financiamento',
-    'Cartão de Crédito',
-    'Outros',
-  ];
+  // 🔥 Categorias de CONTAS (fixas)
+  final List<String> _categorias = AppCategories.contas;
 
   @override
   void initState() {
@@ -360,7 +344,7 @@ class _AdicionarContaScreenState extends State<AdicionarContaScreen> {
                                         width: 12,
                                         height: 12,
                                         decoration: BoxDecoration(
-                                          color: AppColors.getCategoryColor(c),
+                                          color: AppCategories.getColor(c),
                                           shape: BoxShape.circle,
                                         ),
                                       ),

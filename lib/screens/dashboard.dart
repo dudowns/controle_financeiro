@@ -1,10 +1,11 @@
 // lib/screens/dashboard.dart
 import 'package:flutter/material.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
 import '../repositories/lancamento_repository.dart';
+import '../repositories/investimento_repository.dart';
+import '../models/investimento_model.dart';
 import '../services/backup_service_plus.dart';
 import '../utils/date_helper.dart';
 import '../constants/app_colors.dart';
@@ -14,6 +15,7 @@ import '../widgets/primary_card.dart';
 import '../widgets/modern_card.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/animated_counter.dart';
+import '../widgets/grafico_evolucao.dart'; // 🔥 IMPORT DO GRÁFICO
 import '../widgets/loading_indicator.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
@@ -52,9 +54,18 @@ class DashboardScreen extends StatefulWidget {
 class DashboardScreenState extends State<DashboardScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
   final LancamentoRepository _lancamentoRepo = LancamentoRepository();
+  final InvestimentoRepository _investimentoRepo = InvestimentoRepository();
   final BackupServicePlus _backupService = BackupServicePlus();
 
+  // Dados do dashboard financeiro
   DashboardData? _dados;
+
+  // Dados de investimentos para o gráfico
+  List<Map<String, dynamic>> _dadosEvolucao = [];
+  double _totalInvestido = 0;
+  double _patrimonioTotal = 0;
+  bool _carregandoInvestimentos = true;
+
   bool _carregando = true;
   bool _primeiraCarga = true;
   String? _erro;
@@ -75,6 +86,7 @@ class DashboardScreenState extends State<DashboardScreen>
     super.initState();
     _mesSelecionado = DateTime(DateTime.now().year, DateTime.now().month);
     _carregarDados();
+    _carregarDadosInvestimentos();
     _carregarInfoBackup();
 
     _animationController = AnimationController(
@@ -87,6 +99,99 @@ class DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  // ========== CARREGAR DADOS DE INVESTIMENTOS ==========
+  Future<void> _carregarDadosInvestimentos() async {
+    setState(() => _carregandoInvestimentos = true);
+
+    try {
+      final investimentos = await _investimentoRepo.getAllInvestimentosModel();
+      final rendaFixa = await DBHelper().getAllRendaFixa();
+
+      // Calcular totais
+      _totalInvestido = 0;
+      _patrimonioTotal = 0;
+
+      for (var inv in investimentos) {
+        _totalInvestido += inv.valorInvestido;
+        _patrimonioTotal += inv.valorAtual;
+      }
+
+      for (var rf in rendaFixa) {
+        _totalInvestido += rf['valor'] ?? 0;
+        _patrimonioTotal += rf['valor_final'] ?? rf['valor'] ?? 0;
+      }
+
+      // Gerar dados de evolução mensal
+      _dadosEvolucao = await _gerarEvolucaoMensal(investimentos, rendaFixa);
+    } catch (e) {
+      debugPrint('❌ Erro ao carregar investimentos: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _carregandoInvestimentos = false);
+      }
+    }
+  }
+
+  // ========== GERAR EVOLUÇÃO MENSAL - CORRIGIDO PARA 2026 ==========
+  Future<List<Map<String, dynamic>>> _gerarEvolucaoMensal(
+    List<Investimento> investimentos,
+    List<Map<String, dynamic>> rendaFixa,
+  ) async {
+    final Map<int, Map<String, double>> evolucao = {};
+
+    // 🔥 FORÇAR ANO 2026
+    const int anoForcado = 2026;
+
+    // Processar investimentos
+    for (var inv in investimentos) {
+      final mes = inv.dataCompra.month;
+
+      if (!evolucao.containsKey(mes)) {
+        evolucao[mes] = {'investido': 0, 'patrimonio': 0};
+      }
+
+      evolucao[mes]!['investido'] =
+          (evolucao[mes]!['investido'] ?? 0) + inv.valorInvestido;
+      evolucao[mes]!['patrimonio'] =
+          (evolucao[mes]!['patrimonio'] ?? 0) + inv.valorAtual;
+    }
+
+    // Processar renda fixa
+    for (var rf in rendaFixa) {
+      final dataAplicacao = DateTime.parse(rf['data_aplicacao']);
+      final mes = dataAplicacao.month;
+
+      if (!evolucao.containsKey(mes)) {
+        evolucao[mes] = {'investido': 0, 'patrimonio': 0};
+      }
+
+      evolucao[mes]!['investido'] =
+          (evolucao[mes]!['investido'] ?? 0) + (rf['valor'] ?? 0);
+      evolucao[mes]!['patrimonio'] = (evolucao[mes]!['patrimonio'] ?? 0) +
+          (rf['valor_final'] ?? rf['valor'] ?? 0);
+    }
+
+    // Acumular valores mês a mês
+    double investidoAcumulado = 0;
+    double patrimonioAcumulado = 0;
+    final List<Map<String, dynamic>> resultado = [];
+
+    for (int mes = 1; mes <= 12; mes++) {
+      if (evolucao.containsKey(mes)) {
+        investidoAcumulado += evolucao[mes]!['investido']!;
+        patrimonioAcumulado += evolucao[mes]!['patrimonio']!;
+      }
+
+      resultado.add({
+        'data': DateTime(anoForcado, mes, 1),
+        'investido': investidoAcumulado,
+        'patrimonio': patrimonioAcumulado,
+      });
+    }
+
+    return resultado;
   }
 
   Future<void> _carregarInfoBackup() async {
@@ -223,12 +328,8 @@ class DashboardScreenState extends State<DashboardScreen>
           totalDespesas += valor;
 
           final categoria = item["categoria"]?.toString() ?? "Outros";
-          if (!categoria.contains("Renda") &&
-              !categoria.contains("Extra") &&
-              !categoria.contains("Salário")) {
-            gastosPorCategoria[categoria] =
-                (gastosPorCategoria[categoria] ?? 0) + valor;
-          }
+          gastosPorCategoria[categoria] =
+              (gastosPorCategoria[categoria] ?? 0) + valor;
         }
       } catch (e, stackTrace) {
         debugPrint('Erro ao processar lançamento: $e\n$stackTrace');
@@ -432,7 +533,10 @@ class DashboardScreenState extends State<DashboardScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: _carregarDados,
+      onRefresh: () async {
+        await _carregarDados();
+        await _carregarDadosInvestimentos();
+      },
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -451,6 +555,17 @@ class DashboardScreenState extends State<DashboardScreen>
               _buildResumoRapido(),
               const SizedBox(height: AppSizes.paddingXL),
               _buildGraficos(),
+
+              // 🔥 GRÁFICO DE INVESTIMENTOS
+              if (!_carregandoInvestimentos && _dadosEvolucao.isNotEmpty) ...[
+                const SizedBox(height: AppSizes.paddingXL),
+                GraficoEvolucao(
+                  dados: _dadosEvolucao,
+                  valorInvestido: _totalInvestido,
+                  patrimonioAtual: _patrimonioTotal,
+                ),
+              ],
+
               const SizedBox(height: AppSizes.paddingL),
               _buildEstatisticas(),
             ],
@@ -469,7 +584,7 @@ class DashboardScreenState extends State<DashboardScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            "",
+            "Dashboard",
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -941,6 +1056,7 @@ class DashboardScreenState extends State<DashboardScreen>
         onPressed: () {
           _cache.clear();
           _carregarDados();
+          _carregarDadosInvestimentos();
         },
       ),
     );
@@ -1040,6 +1156,16 @@ class _DashboardSkeleton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: AppSizes.paddingXL),
+          SkeletonLoader(
+            child: Container(
+              height: 350,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppSizes.radiusL),
+              ),
+            ),
           ),
         ],
       ),

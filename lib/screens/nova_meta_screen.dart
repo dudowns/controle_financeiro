@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../repositories/meta_repository.dart'; // NOVO: import do repositório
+import '../repositories/meta_repository.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../utils/validators.dart';
@@ -18,7 +18,6 @@ class NovaMetaScreen extends StatefulWidget {
 }
 
 class _NovaMetaScreenState extends State<NovaMetaScreen> {
-  // 🔥 MUDANÇA 1: Usar o repositório
   final MetaRepository _metaRepo = MetaRepository();
 
   final TextEditingController _tituloController = TextEditingController();
@@ -31,7 +30,7 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
   String _iconeSelecionado = 'flag';
   String _corSelecionada = 'viagem';
 
-  bool _salvando = false; // 🔥 NOVO: controlar estado de salvamento
+  bool _salvando = false;
 
   final List<Map<String, dynamic>> _icones = const [
     {'valor': 'flag', 'icone': Icons.flag, 'label': 'Geral'},
@@ -53,6 +52,15 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
     {'valor': 'estudo', 'cor': Colors.orange, 'label': 'Estudo'},
     {'valor': 'investimento', 'cor': Colors.purple, 'label': 'Investimento'},
   ];
+
+  @override
+  void dispose() {
+    _tituloController.dispose();
+    _descricaoController.dispose();
+    _valorObjetivoController.dispose();
+    _valorAtualController.dispose();
+    super.dispose();
+  }
 
   Future<void> _selecionarData() async {
     final DateTime? data = await showDatePicker(
@@ -77,7 +85,6 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
     }
   }
 
-  // 🔥 MUDANÇA 2: Método de validação melhorado
   bool _validarCampos() {
     if (_tituloController.text.isEmpty) {
       _mostrarErro('Digite o título da meta');
@@ -107,13 +114,12 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensagem),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error, // 🔥 Usando AppColors!
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  // 🔥 MUDANÇA 3: Método de salvar usando o repositório
   Future<void> _salvarMeta() async {
     if (!_validarCampos()) return;
 
@@ -123,7 +129,6 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
       final valorObjetivo = _parseValor(_valorObjetivoController.text);
       final valorAtual = _parseValor(_valorAtualController.text);
 
-      // Criar a meta
       final metaId = await _metaRepo.insertMeta({
         'titulo': _tituloController.text,
         'descricao': _descricaoController.text,
@@ -137,7 +142,6 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
       });
 
       if (mounted) {
-        // Se tiver valor inicial, adicionar como depósito
         if (valorAtual > 0) {
           await _metaRepo.insertDepositoMeta({
             'meta_id': metaId,
@@ -147,11 +151,10 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
           });
         }
 
-        // Mostrar mensagem de sucesso
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ Meta "${_tituloController.text}" criada!'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success, // 🔥 Usando AppColors!
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -168,20 +171,11 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
   }
 
   @override
-  void dispose() {
-    _tituloController.dispose();
-    _descricaoController.dispose();
-    _valorObjetivoController.dispose();
-    _valorAtualController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nova Meta'),
-        backgroundColor: const Color(0xFF6A1B9A),
+        backgroundColor: AppColors.primary, // 🔥 Usando AppColors!
         foregroundColor: Colors.white,
       ),
       body: Stack(
@@ -265,7 +259,7 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
                     child: Row(
                       children: [
                         const Icon(Icons.calendar_today,
-                            color: Color(0xFF6A1B9A)),
+                            color: AppColors.primary), // 🔥 AppColors!
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,7 +310,8 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
                               horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF6A1B9A).withOpacity(0.1)
+                                ? AppColors.primary
+                                    .withOpacity(0.1) // 🔥 AppColors!
                                 : null,
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -325,7 +320,7 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
                               Icon(
                                 icone['icone'],
                                 color: isSelected
-                                    ? const Color(0xFF6A1B9A)
+                                    ? AppColors.primary // 🔥 AppColors!
                                     : Colors.grey[600],
                               ),
                               const SizedBox(width: 12),
@@ -333,7 +328,7 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
                                 icone['label'],
                                 style: TextStyle(
                                   color: isSelected
-                                      ? const Color(0xFF6A1B9A)
+                                      ? AppColors.primary // 🔥 AppColors!
                                       : Colors.grey[800],
                                   fontWeight: isSelected
                                       ? FontWeight.bold
@@ -342,8 +337,9 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
                               ),
                               const Spacer(),
                               if (isSelected)
-                                const Icon(Icons.check_circle,
-                                    color: Color(0xFF6A1B9A), size: 20),
+                                Icon(Icons.check_circle,
+                                    color: AppColors.primary,
+                                    size: 20), // 🔥 AppColors!
                             ],
                           ),
                         ),
@@ -397,12 +393,17 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
                             _salvando ? null : () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: const BorderSide(color: Color(0xFF6A1B9A)),
+                          side: BorderSide(
+                              color: AppColors.primary), // 🔥 AppColors!
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text('Cancelar'),
+                        child: Text(
+                          'Cancelar',
+                          style: TextStyle(
+                              color: AppColors.primary), // 🔥 AppColors!
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -410,7 +411,7 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
                       child: ElevatedButton(
                         onPressed: _salvando ? null : _salvarMeta,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6A1B9A),
+                          backgroundColor: AppColors.primary, // 🔥 AppColors!
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -435,7 +436,8 @@ class _NovaMetaScreenState extends State<NovaMetaScreen> {
               ],
             ),
           ),
-          // 🔥 NOVO: Overlay de carregamento
+
+          // Overlay de carregamento
           if (_salvando)
             Container(
               color: Colors.black.withOpacity(0.3),

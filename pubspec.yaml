@@ -10,14 +10,14 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # 🔥 LOCALIZAÇÕES (ESSENCIAL!)
+  # 🔥 LOCALIZAÇÕES
   flutter_localizations:
     sdk: flutter
   intl: ^0.20.2
   
   # ========== BANCO DE DADOS ==========
   sqflite: ^2.3.0
-  sqflite_common_ffi: ^2.3.0  # Para Windows
+  sqflite_common_ffi: ^2.3.0
   path: ^1.8.0
   path_provider: ^2.1.0
   
@@ -66,25 +66,12 @@ flutter:
     - assets/icon/
     - assets/images/
   
-  # ========== FONTES (COMENTADAS - crie a pasta e baixe as fontes) ==========
+  # ========== FONTES (COMENTADAS) ==========
   # fonts:
   #   - family: Poppins
   #     fonts:
   #       - asset: assets/fonts/Poppins-Regular.ttf
   #         weight: 400
-  #       - asset: assets/fonts/Poppins-Medium.ttf
-  #         weight: 500
-  #       - asset: assets/fonts/Poppins-SemiBold.ttf
-  #         weight: 600
-  #       - asset: assets/fonts/Poppins-Bold.ttf
-  #         weight: 700
-  #   - family: Roboto
-  #     fonts:
-  #       - asset: assets/fonts/Roboto-Regular.ttf
-  #       - asset: assets/fonts/Roboto-Medium.ttf
-  #         weight: 500
-  #       - asset: assets/fonts/Roboto-Bold.ttf
-  #         weight: 700
 
 # ========== CONFIGURAÇÃO DO ÍCONE ==========
 flutter_launcher_icons:

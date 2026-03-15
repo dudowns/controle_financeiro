@@ -54,12 +54,8 @@ class DBHelper {
   static const String tabelaInvestimentos = 'investimentos';
   static const String tabelaProventos = 'proventos';
   static const String tabelaRendaFixa = 'renda_fixa';
-
-  // 🔥 NOVAS TABELAS PARA CONTAS DO MÊS
   static const String tabelaContas = 'contas';
   static const String tabelaPagamentos = 'pagamentos_mensais';
-
-  // TABELAS ANTIGAS (mantidas por compatibilidade)
   static const String tabelaContasFixas = 'contas_fixas';
   static const String tabelaParcelas = 'parcelas';
 
@@ -92,8 +88,6 @@ class DBHelper {
 
   Future<void> _onCreate(Database db, int version) async {
     debugPrint('🔨 Criando tabelas versão $version');
-
-    // ========== TABELAS EXISTENTES ==========
 
     // Tabela de lançamentos
     await db.execute('''
@@ -202,8 +196,6 @@ class DBHelper {
       )
     ''');
 
-    // ========== 🔥 NOVAS TABELAS PARA CONTAS DO MÊS ==========
-
     // Tabela de contas (mensais/parceladas)
     await db.execute('''
       CREATE TABLE $tabelaContas(
@@ -238,8 +230,7 @@ class DBHelper {
       )
     ''');
 
-    // ========== TABELAS ANTIGAS (mantidas por compatibilidade) ==========
-
+    // Tabelas antigas (mantidas por compatibilidade)
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tabelaContasFixas(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -325,8 +316,6 @@ class DBHelper {
       await db.execute(
           'CREATE INDEX idx_renda_fixa_status ON $tabelaRendaFixa(status)');
     }
-
-    // 🔥 NOVOS ÍNDICES para as tabelas de contas
     if (!nomesIndices.contains('idx_pagamentos_conta')) {
       await db.execute(
           'CREATE INDEX idx_pagamentos_conta ON $tabelaPagamentos(conta_id)');
@@ -865,7 +854,7 @@ class DBHelper {
     return await delete(tabelaRendaFixa, id);
   }
 
-  // ========== 🔥 NOVOS MÉTODOS PARA CONTAS DO MÊS ==========
+  // ========== MÉTODOS PARA CONTAS DO MÊS ==========
 
   Future<int> adicionarConta(Map<String, dynamic> conta) async {
     final db = await database;
@@ -877,10 +866,9 @@ class DBHelper {
     });
   }
 
-  // 🔥 MÉTODO CORRIGIDO - Agora usa data_inicio em vez de hoje!
+  // 🔥 FUNÇÃO CORRIGIDA - GERA PARCELAS POR 5 ANOS (60 meses)
   Future<void> _gerarPagamentosFuturos(
       Transaction txn, int contaId, Map<String, dynamic> conta) async {
-    // CORREÇÃO: Usar a data de início que você escolheu!
     final dataInicio = DateTime.parse(conta['data_inicio'] as String);
     final tipo = conta['tipo'] as String;
     final valor = conta['valor'] as double;
@@ -889,19 +877,18 @@ class DBHelper {
     if (tipo == 'parcelada') {
       final parcelasTotal = conta['parcelas_total'] as int;
 
-      // Gerar a partir da data de início (janeiro, no seu caso)
+      // Gera o número EXATO de parcelas
       for (int i = 0; i < parcelasTotal; i++) {
         final mesReferencia = DateTime(
           dataInicio.year,
-          dataInicio.month + i, // Agora começa de janeiro!
+          dataInicio.month + i,
           diaVencimento,
         );
         final anoMes = mesReferencia.year * 100 + mesReferencia.month;
 
-        // Determinar status baseado na data
         int status;
         if (mesReferencia.isBefore(DateTime.now())) {
-          status = StatusPagamento.pendente.index; // ou pago? Você decide
+          status = StatusPagamento.pendente.index;
         } else {
           status = StatusPagamento.pendente.index;
         }
@@ -914,8 +901,9 @@ class DBHelper {
         });
       }
     } else {
-      // mensal
-      for (int i = 0; i < 12; i++) {
+      // 🔥 mensal - AGORA gera por 5 ANOS (60 meses) em vez de 12!
+      for (int i = 0; i < 60; i++) {
+        // 5 anos de parcelas
         final mesReferencia = DateTime(
           dataInicio.year,
           dataInicio.month + i,
@@ -942,7 +930,8 @@ class DBHelper {
       SELECT 
         p.*,
         c.nome as conta_nome,
-        c.dia_vencimento
+        c.dia_vencimento,
+        c.categoria
       FROM $tabelaPagamentos p
       INNER JOIN $tabelaContas c ON p.conta_id = c.id
       WHERE p.ano_mes = ?

@@ -304,7 +304,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
         final contaData = snapshot.data;
         final categoria = contaData?['categoria'] as String? ?? 'Outros';
 
-        // 🔥 CORREÇÃO DEFINITIVA - Cálculo de parcelas
+        // 🔥 Cálculo de parcelas - SEM WARNINGS!
         String? infoParcela;
 
         if (contaData != null) {
@@ -312,18 +312,8 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
             final dataInicio =
                 DateTime.parse(contaData['data_inicio'] as String);
             final totalParcelas = contaData['parcelas_total'] as int?;
-            final parcelasPagas = contaData['parcelas_pagas'] as int? ?? 0;
             final tipo = contaData['tipo'] as String? ?? 'mensal';
 
-            // Log para debug (remova depois)
-            debugPrint('📊 Conta: ${pagamento.contaNome}');
-            debugPrint('   - totalParcelas: $totalParcelas');
-            debugPrint('   - parcelasPagas: $parcelasPagas');
-            debugPrint('   - tipo: $tipo');
-            debugPrint('   - dataInicio: $dataInicio');
-            debugPrint('   - mesAtual: ${pagamento.anoMes}');
-
-            // Verifica se é parcelada (pelo tipo OU se tem totalParcelas > 0)
             final ehParcelada = tipo == 'parcelada' ||
                 (totalParcelas != null && totalParcelas > 0);
 
@@ -334,17 +324,12 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
               if (mesAtual >= mesInicio) {
                 final parcelaAtual = (mesAtual - mesInicio) + 1;
 
-                // Se tem totalParcelas, mostra completo
                 if (totalParcelas != null && totalParcelas > 0) {
                   if (parcelaAtual <= totalParcelas) {
                     infoParcela = '$parcelaAtual/$totalParcelas';
-                    debugPrint('   ✅ Parcela calculada: $infoParcela');
                   }
-                }
-                // Se não tem total, mostra apenas a atual
-                else {
+                } else {
                   infoParcela = '$parcelaAtual/?';
-                  debugPrint('   ⚠️ Parcela parcial: $infoParcela');
                 }
               }
             }
@@ -427,7 +412,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        // 🔥 Badge de parcela (agora funcionando!)
+                        // Badge de parcela
                         if (infoParcela != null)
                           Container(
                             padding: const EdgeInsets.symmetric(

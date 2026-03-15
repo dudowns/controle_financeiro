@@ -8,6 +8,7 @@ import 'nova_transacao.dart';
 import 'editar_transacao.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
+import '../constants/app_categories.dart'; // 🔥 IMPORTAÇÃO ADICIONADA!
 import '../widgets/primary_card.dart';
 import '../widgets/modern_card.dart';
 import '../widgets/gradient_button.dart';
@@ -51,16 +52,12 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   Ordenacao _ordenacaoAtual = Ordenacao.dataDesc;
 
   final List<String> tipos = const ['Todos', 'Receita', 'Gasto'];
-  final List<String> categorias = const [
+
+  // 🔥 CATEGORIAS DINÂMICAS DO AppCategories!
+  final List<String> categorias = [
     'Todas',
-    'Alimentação',
-    'Transporte',
-    'Moradia',
-    'Saúde',
-    'Educação',
-    'Lazer',
-    'Investimentos',
-    'Outros'
+    ...AppCategories.gastos,
+    ...AppCategories.receitas,
   ];
 
   @override
@@ -103,7 +100,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     });
 
     try {
-      // 🔥 CORRIGIDO: criar nova lista em vez de modificar
       final novosLancamentos = await _lancamentoRepo.getAllLancamentos();
       lancamentos = [...novosLancamentos];
       _lancamentosFiltradosCache = null;
@@ -146,7 +142,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
 
       if (mounted) {
         setState(() {
-          // 🔥 CORRIGIDO: usar spread operator para criar nova lista
           lancamentos = [...lancamentos, ...maisLancamentos];
           _paginaAtual++;
           _temMaisItens = maisLancamentos.length >= 20;

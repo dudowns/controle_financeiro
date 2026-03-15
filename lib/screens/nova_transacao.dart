@@ -2,9 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../models/lancamento_model.dart';
-import '../constants/app_colors.dart'; // 🔥 ESSENCIAL!
-import '../constants/app_sizes.dart';
+import '../constants/app_colors.dart';
+import '../constants/app_categories.dart'; // 🔥 NOVO!
 import '../utils/formatters.dart';
 
 class NovaTransacaoScreen extends StatefulWidget {
@@ -28,8 +27,12 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
 
   final List<String> _tipos = ['receita', 'gasto'];
 
-  // 🔥 CATEGORIAS VINDAS DIRETAMENTE DO AppColors!
-  final List<String> _categorias = AppColors.categoryColors.keys.toList();
+  // 🔥 Listas dinâmicas baseadas no tipo
+  List<String> get _categoriasDisponiveis {
+    return _tipoSelecionado == 'receita'
+        ? AppCategories.receitas
+        : AppCategories.gastos;
+  }
 
   @override
   void dispose() {
@@ -61,8 +64,7 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
         'descricao': _descricaoController.text,
         'valor': _valor,
         'tipo': _tipoSelecionado,
-        'categoria':
-            _categoriaSelecionada, // 🔥 Agora sempre uma categoria válida!
+        'categoria': _categoriaSelecionada,
         'data': _dataSelecionada.toIso8601String(),
         'observacao': _observacaoController.text,
       };
@@ -115,10 +117,7 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
               // Tipo (Receita/Gasto)
               const Text(
                 'Tipo',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Row(
@@ -146,6 +145,8 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
                         onSelected: (selected) {
                           setState(() {
                             _tipoSelecionado = tipo;
+                            _categoriaSelecionada =
+                                'Outros'; // Reset ao mudar tipo
                           });
                         },
                       ),
@@ -201,7 +202,7 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
 
               const SizedBox(height: 16),
 
-              // 🔥 Categoria - AGORA VEM DO AppColors!
+              // 🔥 Categoria - DINÂMICA por tipo!
               DropdownButtonFormField<String>(
                 value: _categoriaSelecionada,
                 decoration: const InputDecoration(
@@ -209,7 +210,7 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
-                items: _categorias.map((categoria) {
+                items: _categoriasDisponiveis.map((categoria) {
                   return DropdownMenuItem(
                     value: categoria,
                     child: Row(
@@ -218,8 +219,7 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
                           width: 12,
                           height: 12,
                           decoration: BoxDecoration(
-                            color: AppColors.categoryColors[categoria] ??
-                                AppColors.categoryColors['Outros']!,
+                            color: AppCategories.getColor(categoria),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -233,6 +233,12 @@ class _NovaTransacaoScreenState extends State<NovaTransacaoScreen> {
                   setState(() {
                     _categoriaSelecionada = value!;
                   });
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Selecione uma categoria';
+                  }
+                  return null;
                 },
               ),
 
