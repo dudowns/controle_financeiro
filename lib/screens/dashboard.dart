@@ -269,7 +269,9 @@ class DashboardScreenState extends State<DashboardScreen>
 
       if (_cache.length > 6) {
         final chavesAntigas = _cache.keys.take(_cache.length - 6).toList();
-        for (var chave in chavesAntigas) _cache.remove(chave);
+        for (var chave in chavesAntigas) {
+          _cache.remove(chave);
+        }
       }
 
       if (mounted) {
@@ -282,12 +284,13 @@ class DashboardScreenState extends State<DashboardScreen>
       PerformanceService.stop('carregarDashboard');
     } catch (e) {
       debugPrint('❌ Erro ao carregar dashboard: $e');
-      if (mounted)
+      if (mounted) {
         setState(() {
           _erro = 'Erro ao carregar dados. Tente novamente.';
           _carregando = false;
           _primeiraCarga = false;
         });
+      }
     }
   }
 
@@ -303,7 +306,9 @@ class DashboardScreenState extends State<DashboardScreen>
       try {
         final dataLancamento = DateTime.parse(item['data'] as String);
         if (dataLancamento.isBefore(primeiroDiaDoMes) ||
-            dataLancamento.isAfter(ultimoDiaDoMes)) continue;
+            dataLancamento.isAfter(ultimoDiaDoMes)) {
+          continue;
+        }
         final valor = _extrairValorSeguro(item["valor"]);
         if (valor <= 0) continue;
         totalLancamentos++;
@@ -528,8 +533,9 @@ class DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildBody() {
     if (_primeiraCarga) return const _DashboardSkeleton();
-    if (_carregando)
+    if (_carregando) {
       return const LoadingIndicator(message: 'Carregando dashboard...');
+    }
     if (_erro != null) {
       return Center(
         child: Column(
@@ -610,7 +616,7 @@ class DashboardScreenState extends State<DashboardScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text("Dashboard",
+          const Text("",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           Container(
             decoration: BoxDecoration(

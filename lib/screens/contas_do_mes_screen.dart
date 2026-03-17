@@ -121,7 +121,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Contas do Mês'),
+        title: const Text(''),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -407,7 +407,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                         ),
                         Text(
                           categoria,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.textSecondary,
                           ),
@@ -423,7 +423,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                             ),
                             child: Text(
                               infoParcela,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 10,
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.bold,
@@ -435,7 +435,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                     const SizedBox(height: 2),
                     Text(
                       'Vence ${pagamento.dataVencimentoFormatada}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -515,9 +515,9 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_outlined, size: 64, color: AppColors.muted),
+          const Icon(Icons.receipt_outlined, size: 64, color: AppColors.muted),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Nenhuma conta para este mês',
             style: TextStyle(
               fontSize: 16,

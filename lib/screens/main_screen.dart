@@ -7,6 +7,8 @@ import 'lancamentos.dart';
 import 'contas_do_mes_screen.dart';
 import 'investimentos_tabs.dart';
 import 'metas_screen.dart';
+import 'backup_screen.dart'; // ✅ IMPORT OBRIGATÓRIO!
+import 'notificacoes_screen.dart'; // ✅ IMPORT OBRIGATÓRIO!
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -17,7 +19,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
-  late final List<Widget> _screens; // Criado UMA vez
+  late final List<Widget> _screens;
   late final AnimationController _animationController;
   late final Animation<double> _scaleAnimation;
 
@@ -33,7 +35,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // Animações para o navbar
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -42,7 +43,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
     );
 
-    // Inicializa as telas UMA ÚNICA VEZ (mais rápido!)
     _screens = const [
       DashboardScreen(),
       LancamentosScreen(),
@@ -79,15 +79,56 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             gradient: AppColors.primaryGradient,
           ),
         ),
-      ),
+        // ✅ BOTÕES NO AppBar - AGORA FUNCIONAM!
+        actions: [
+          // Botão de Backup
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.backup_outlined),
+              onPressed: () {
+                print('🔹 Backup clicado!');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const BackupScreen()),
+                );
+              },
+              tooltip: 'Backup',
+              color: Colors.white,
+            ),
+          ),
 
-      // IndexedStack = RÁPIDO PRA CARAMBA! 🚀
+          // Botão de Notificações
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () {
+                print('🔹 Notificações clicado!');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const NotificacoesScreen()),
+                );
+              },
+              tooltip: 'Notificações',
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
-
-      // Bottom Navigation Bar TURBINADO
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
