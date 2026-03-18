@@ -12,15 +12,14 @@ import '../services/notification_service.dart';
 import '../services/performance_service.dart';
 import 'detalhes_ativo.dart';
 import 'grafico_ativo.dart';
-import 'proventos.dart';
+import 'proventos_screen.dart';
+import 'lancamentos_investimentos_screen.dart';
 import 'editar_investimento.dart';
 import 'adicionar_investimento.dart';
 import 'novo_investimento_dialog.dart';
 import '../models/renda_fixa_model.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
-import '../constants/app_text_styles.dart';
-import '../constants/app_animations.dart';
 import '../widgets/primary_card.dart';
 import '../widgets/gradient_card.dart';
 import '../widgets/animated_counter.dart';
@@ -54,12 +53,18 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
   bool _primeiraCarga = true;
   bool atualizando = false;
 
+  // Estatísticas
   double patrimonioTotal = 0;
   double valorInvestido = 0;
   double ganhoCapital = 0;
   double dividendosRecebidos = 0;
   double proventos12Meses = 0;
+  double proventosMesAtual = 0;
+  double proventosProjetados = 0;
+
   final Map<String, double> valorPorTipo = {};
+  final Map<String, double> proventosPorAtivo = {};
+  List<MapEntry<String, double>> topAtivos = [];
 
   static const Color _profitText = AppColors.success;
   static const Color _lossText = AppColors.error;
@@ -102,7 +107,10 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
   Future<void> carregarDados() async {
     PerformanceService.start('carregarInvestimentos');
 
-    setState(() => carregando = true);
+    setState(() {
+      carregando = true;
+      _primeiraCarga = false;
+    });
 
     try {
       final investimentosData =
@@ -123,7 +131,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
 
     setState(() {
       carregando = false;
-      _primeiraCarga = false;
     });
   }
 
@@ -132,10 +139,15 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     valorInvestido = 0;
     dividendosRecebidos = 0;
     proventos12Meses = 0;
+    proventosMesAtual = 0;
+    proventosProjetados = 0;
     valorPorTipo.clear();
+    proventosPorAtivo.clear();
 
     final agora = DateTime.now();
     final umAnoAtras = DateTime(agora.year - 1, agora.month, agora.day);
+    final inicioMes = DateTime(agora.year, agora.month, 1);
+    final fimMes = DateTime(agora.year, agora.month + 1, 0);
 
     final investimentosConsolidados =
         _investimentoRepo.consolidarInvestimentos(investimentos);
@@ -156,39 +168,666 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           (valorPorTipo['RENDA_FIXA'] ?? 0) + valorFinal;
     }
 
+    // Calcular top ativos
+    final Map<String, double> valorPorAtivo = {};
+    for (var inv in investimentosConsolidados) {
+      valorPorAtivo[inv.ticker] =
+          (valorPorAtivo[inv.ticker] ?? 0) + inv.valorAtual;
+    }
+
+    final ativosOrdenados = valorPorAtivo.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    topAtivos = ativosOrdenados.take(5).toList();
+
+    // Processar proventos
     for (var p in proventos) {
       dividendosRecebidos += p.totalRecebido;
+
+      proventosPorAtivo[p.ticker] =
+          (proventosPorAtivo[p.ticker] ?? 0) + p.totalRecebido;
+
       if (p.dataPagamento.isAfter(umAnoAtras)) {
         proventos12Meses += p.totalRecebido;
+      }
+
+      if (p.dataPagamento.isAfter(inicioMes) &&
+          p.dataPagamento.isBefore(fimMes)) {
+        proventosMesAtual += p.totalRecebido;
+      }
+
+      if (p.dataPagamento.isAfter(agora)) {
+        proventosProjetados += p.totalRecebido;
       }
     }
 
     ganhoCapital = patrimonioTotal - valorInvestido;
   }
 
-  Map<String, Map<String, double>> _calcularEvolucaoMensal() {
-    final Map<String, Map<String, double>> evolucao = {};
-
-    final investimentosConsolidados =
-        _investimentoRepo.consolidarInvestimentos(investimentos);
-
-    for (var item in investimentosConsolidados) {
-      final mesAno = Formatador.mesAno(item.dataCompra);
-
-      if (!evolucao.containsKey(mesAno)) {
-        evolucao[mesAno] = {
-          'patrimonio': 0,
-          'investido': 0,
-        };
-      }
-
-      evolucao[mesAno]!['patrimonio'] =
-          (evolucao[mesAno]!['patrimonio'] ?? 0) + item.valorAtual;
-      evolucao[mesAno]!['investido'] =
-          (evolucao[mesAno]!['investido'] ?? 0) + item.valorInvestido;
+  // ========== GRÁFICO DE PIZZA ==========
+  Widget _buildGraficoPizza() {
+    if (valorPorTipo.isEmpty) {
+      return Container(
+        height: 180,
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: Text(
+            'Sem dados para exibir',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
     }
 
-    return evolucao;
+    final cores = {
+      'ACAO': Colors.blue,
+      'FII': Colors.green,
+      'RENDA_FIXA': Colors.orange,
+      'CRIPTO': Colors.purple,
+      'ETF': AppColors.primary,
+      'BDR': Colors.teal,
+    };
+
+    final List<PieChartSectionData> sections = [];
+
+    valorPorTipo.forEach((tipo, valor) {
+      final percentual = (valor / patrimonioTotal) * 100;
+      if (percentual > 0.5) {
+        sections.add(PieChartSectionData(
+          value: valor,
+          color: cores[tipo] ?? Colors.grey,
+          title: '${percentual.toStringAsFixed(1)}%',
+          titleStyle: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+          radius: 70,
+        ));
+      }
+    });
+
+    return Container(
+      height: 180,
+      padding: const EdgeInsets.all(6),
+      child: PieChart(
+        PieChartData(
+          sectionsSpace: 2,
+          centerSpaceRadius: 35,
+          sections: sections,
+        ),
+      ),
+    );
+  }
+
+  // ========== TOP 5 ATIVOS ==========
+  Widget _buildTopAtivos() {
+    if (topAtivos.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '📈 TOP 5 ATIVOS',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...topAtivos.asMap().entries.map((entry) {
+            final index = entry.key + 1;
+            final ativo = entry.value.key;
+            final valor = entry.value.value;
+            final percentual = (valor / patrimonioTotal) * 100;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$index',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      ativo,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    Formatador.moedaCompacta(valor),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${percentual.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  // ========== GRÁFICO DE EVOLUÇÃO ==========
+  Widget _buildGraficoEvolucao() {
+    return Container(
+      height: 130,
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Center(
+        child: Text(
+          'Gráfico de evolução',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      ),
+    );
+  }
+
+  // ========== CARD DE RESUMO COMPACTO ==========
+  Widget _buildResumoCompacto() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildInfoColuna('Aplicado', valorInvestido, Colors.blue),
+          Container(height: 30, width: 1, color: Colors.grey[300]),
+          _buildInfoColuna('Dividendos', dividendosRecebidos, Colors.green),
+          Container(height: 30, width: 1, color: Colors.grey[300]),
+          _buildInfoColuna('Ganho', ganhoCapital,
+              ganhoCapital >= 0 ? Colors.green : Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoColuna(String label, double valor, Color cor) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 4),
+        AnimatedCounter(
+          value: valor,
+          formatter: Formatador.moedaCompacta,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: cor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ========== PAINEL PRINCIPAL OTIMIZADO ==========
+  Widget _buildPainelTab() {
+    final rentabilidade = valorInvestido > 0
+        ? ((patrimonioTotal - valorInvestido) / valorInvestido) * 100
+        : 0.0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
+      child: Column(
+        children: [
+          // Card principal - OTIMIZADO
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14), // 🔥 Reduzido de 20 para 14
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.primary, AppColors.secondary],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.25),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'PATRIMÔNIO',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 4), // 🔥 Reduzido pela metade
+                Text(
+                  Formatador.moeda(patrimonioTotal),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26, // 🔥 Reduzido de 32 para 26
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8), // 🔥 Reduzido de 12 para 8
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: rentabilidade >= 0
+                            ? _profitBg.withOpacity(0.2)
+                            : _lossBg.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            rentabilidade >= 0
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            size: 12,
+                            color: rentabilidade >= 0 ? _profitText : _lossText,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${rentabilidade >= 0 ? '+' : ''}${rentabilidade.toStringAsFixed(2)}%',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  rentabilidade >= 0 ? _profitText : _lossText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'vs. investido',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12), // 🔥 Reduzido de 16 para 12
+
+          // Card de resumo compacto (substitui os 3 cards)
+          _buildResumoCompacto(),
+
+          const SizedBox(height: 12),
+
+          // Gráfico de pizza e top ativos lado a lado
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 5,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '🥧 Distribuição',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 160,
+                        child: _buildGraficoPizza(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 7,
+                child: _buildTopAtivos(),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Gráfico de evolução
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '📊 Evolução',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildGraficoEvolucao(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========== BOTÃO FLUTUANTE ==========
+  void _mostrarMenuCompraVenda() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'O que deseja fazer?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.trending_up,
+                      color: Colors.blue, size: 20),
+                ),
+                title: const Text(
+                  'Comprar Ações/FIIs',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                subtitle: const Text('Adicionar novo investimento',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _abrirDialogAdicionar();
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child:
+                      const Icon(Icons.savings, color: Colors.teal, size: 20),
+                ),
+                title: const Text(
+                  'Comprar Renda Fixa',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                subtitle: const Text('CDB, LCI, Tesouro, etc',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _abrirDialogRendaFixa();
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.trending_down,
+                      color: Colors.red, size: 20),
+                ),
+                title: const Text(
+                  'Vender Ativo',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                subtitle: const Text('Registrar venda de um investimento',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _abrirDialogVenda();
+                },
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar', style: TextStyle(fontSize: 14)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _abrirDialogAdicionar() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AdicionarInvestimentoScreen(),
+      ),
+    );
+    if (result == true) carregarDados();
+  }
+
+  void _abrirDialogRendaFixa() {
+    showDialog(
+      context: context,
+      builder: (context) => NovoInvestimentoDialog(
+        onSalvar: _salvarRendaFixa,
+      ),
+    );
+  }
+
+  void _abrirDialogVenda() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Funcionalidade em desenvolvimento'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  Future<void> _salvarRendaFixa(RendaFixaModel investimento) async {
+    try {
+      await DBHelper().insertRendaFixa(investimento.toJson());
+      await carregarDados();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ ${investimento.nome} adicionado!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_primeiraCarga && carregando) {
+      return const _InvestimentosSkeleton();
+    }
+
+    if (carregando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        toolbarHeight: 50, // 🔥 Reduzido para 50
+        title: const Text(
+          'Investimentos',
+          style: TextStyle(fontSize: 18), // 🔥 Fonte ligeiramente reduzida
+        ),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(45), // 🔥 Altura reduzida
+          child: Container(
+            color: AppColors.primary,
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
+              labelStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600), // 🔥 Reduzido para 12
+              unselectedLabelStyle: const TextStyle(fontSize: 12),
+              tabs: const [
+                Tab(
+                    icon: Icon(Icons.dashboard, size: 18),
+                    text: 'PAINEL'), // 🔥 Ícone 18
+                Tab(icon: Icon(Icons.history, size: 18), text: 'LANÇAMENTOS'),
+                Tab(
+                    icon: Icon(Icons.monetization_on, size: 18),
+                    text: 'PROVENTOS'),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: atualizando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.refresh, size: 20),
+            onPressed: atualizando ? null : _atualizarPrecos,
+          ),
+        ],
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildPainelTab(),
+          LancamentosInvestimentosScreen(investimentos: investimentos),
+          ProventosScreen(
+            proventos: proventos,
+            onRefresh: carregarDados,
+          ),
+        ],
+      ),
+      floatingActionButton: _tabController.index == 0
+          ? FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.add, color: Colors.white, size: 24),
+              onPressed: _mostrarMenuCompraVenda,
+            )
+          : null,
+    );
   }
 
   Future<void> _atualizarPrecos() async {
@@ -217,12 +856,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     await carregarDados();
     setState(() => atualizando = false);
 
-    NotificationService().addNotification(
-      titulo: '📊 Preços Atualizados',
-      mensagem:
-          '$atualizados ativos atualizados${comErro > 0 ? ', $comErro erros' : ''}',
-    );
-
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -232,1619 +865,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
         ),
       );
     }
-  }
-
-  String _formatarValor(double valor) => Formatador.moeda(valor);
-  String _formatarCompacto(double valor) => Formatador.moedaCompacta(valor);
-  String _formatarPercentual(double valor) => '${valor.toStringAsFixed(2)}%';
-  String _formatarQuantidade(double valor) => valor.toStringAsFixed(0);
-
-  void _abrirDialogRendaFixa() {
-    showDialog(
-      context: context,
-      builder: (context) => NovoInvestimentoDialog(
-        onSalvar: _salvarRendaFixa,
-      ),
-    );
-  }
-
-  Future<void> _salvarRendaFixa(RendaFixaModel investimento) async {
-    try {
-      await DBHelper().insertRendaFixa(investimento.toJson());
-      await carregarDados();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ ${investimento.nome} adicionado!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e'), backgroundColor: AppColors.error),
-        );
-      }
-    }
-  }
-
-  void _mostrarMenuCompraVenda() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'O que deseja fazer?',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.trending_up, color: Colors.blue),
-                ),
-                title: const Text(
-                  'Comprar Ações/FIIs',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle:
-                    const Text('Adicionar novo investimento em renda variável'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _abrirDialogAdicionar();
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.savings, color: Colors.teal),
-                ),
-                title: const Text(
-                  'Comprar Renda Fixa',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: const Text('CDB, LCI, Tesouro, etc'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _abrirDialogRendaFixa();
-                },
-              ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _abrirDialogAdicionar() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AdicionarInvestimentoScreen(),
-      ),
-    );
-    if (result == true) {
-      carregarDados();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(''),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.trending_up), text: 'Carteira'),
-            Tab(icon: Icon(Icons.pie_chart), text: 'Análise'),
-            Tab(icon: Icon(Icons.monetization_on), text: 'Proventos'),
-          ],
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-        ),
-        actions: [
-          if (_tabController.index == 0) ...[
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.sort, color: Colors.white),
-              onSelected: (value) => _ordenarInvestimentos(value),
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'ticker',
-                  child: Text('Ordenar por ticker'),
-                ),
-                PopupMenuItem(
-                  value: 'valor',
-                  child: Text('Maior valor'),
-                ),
-                PopupMenuItem(
-                  value: 'rentabilidade',
-                  child: Text('Melhor rentabilidade'),
-                ),
-              ],
-            ),
-            IconButton(
-              icon: atualizando
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Icon(Icons.refresh),
-              onPressed: atualizando ? null : _atualizarPrecos,
-            ),
-          ],
-        ],
-      ),
-      body: _buildBody(),
-      floatingActionButton: _tabController.index == 0
-          ? Padding(
-              padding: const EdgeInsets.only(bottom: 115),
-              child: FloatingActionButton(
-                backgroundColor: AppColors.primary,
-                onPressed: _mostrarMenuCompraVenda,
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(colors: [
-                      AppColors.primary,
-                      AppColors.secondary,
-                    ]),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 28),
-                ),
-              ),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-    );
-  }
-
-  void _ordenarInvestimentos(String criterio) {
-    setState(() {
-      final consolidados =
-          _investimentoRepo.consolidarInvestimentos(investimentos);
-      investimentos = _investimentoRepo.ordenarInvestimentos(
-        consolidados,
-        criterio: criterio,
-      );
-    });
-  }
-
-  Widget _buildBody() {
-    if (_primeiraCarga) {
-      return const _InvestimentosSkeleton();
-    }
-
-    if (carregando) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return TabBarView(
-      controller: _tabController,
-      children: [
-        _buildCarteiraTab(),
-        _buildAnaliseTab(),
-        const ProventosScreen(),
-      ],
-    );
-  }
-
-  Widget _buildCarteiraTab() {
-    final investimentosConsolidados =
-        _investimentoRepo.consolidarInvestimentos(investimentos);
-
-    if (investimentosConsolidados.isEmpty && rendaFixa.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.trending_up,
-                size: 64,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Nenhum investimento',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Toque no + para adicionar seu primeiro ativo',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: _buildHeaderTurbinado(investimentosConsolidados),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                if (index < investimentosConsolidados.length) {
-                  return _buildAtivoCardTurbinado(
-                      investimentosConsolidados[index]);
-                } else {
-                  return _buildRendaFixaCard(
-                      rendaFixa[index - investimentosConsolidados.length]);
-                }
-              },
-              childCount: investimentosConsolidados.length + rendaFixa.length,
-            ),
-          ),
-        ),
-        const SliverPadding(padding: EdgeInsets.only(bottom: 140)),
-      ],
-    );
-  }
-
-  Widget _buildHeaderTurbinado(List<Investimento> investimentosConsolidados) {
-    double totalInvestido = 0;
-    double totalAtual = 0;
-
-    for (var item in investimentosConsolidados) {
-      totalInvestido += item.valorInvestido;
-      totalAtual += item.valorAtual;
-    }
-
-    for (var item in rendaFixa) {
-      totalInvestido += item['valor'] ?? 0;
-      totalAtual += item['valor_final'] ?? item['valor'] ?? 0;
-    }
-
-    final rentabilidade = totalInvestido > 0
-        ? ((totalAtual - totalInvestido) / totalInvestido) * 100
-        : 0;
-
-    return FadeTransition(
-      opacity: _animationController,
-      child: Container(
-        margin: const EdgeInsets.all(20),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.primary, AppColors.secondary],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacity(0.3),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'PATRIMÔNIO',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
-                    letterSpacing: 1,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${investimentosConsolidados.length + rendaFixa.length} ativos',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                AnimatedCounter(
-                  value: totalAtual,
-                  formatter: _formatarValor,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: rentabilidade >= 0
-                        ? _profitBg.withOpacity(0.2)
-                        : _lossBg.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        rentabilidade >= 0
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        size: 14,
-                        color: rentabilidade >= 0 ? _profitText : _lossText,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${rentabilidade >= 0 ? '+' : ''}${rentabilidade.toStringAsFixed(2)}%',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: rentabilidade >= 0 ? _profitText : _lossText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricCard(
-                    'Investido',
-                    totalInvestido,
-                    Icons.account_balance_wallet,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildMetricCard(
-                    'Rendimento',
-                    totalAtual - totalInvestido,
-                    Icons.trending_up,
-                    cor: (totalAtual - totalInvestido) >= 0
-                        ? _profitText
-                        : _lossText,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildMetricCard(
-                    'Dividendos',
-                    dividendosRecebidos,
-                    Icons.monetization_on,
-                    cor: _profitText,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetricCard(
-    String label,
-    double valor,
-    IconData icone, {
-    Color? cor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(icone, size: 16, color: Colors.white70),
-          const SizedBox(height: 4),
-          AnimatedCounter(
-            value: valor,
-            formatter: _formatarValor,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: cor ?? Colors.white,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, color: Colors.white70),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAtivoCardTurbinado(Investimento item) {
-    final cor = coresPorTipo[item.tipo.nome] ?? Colors.grey;
-
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(
-        milliseconds: 300 + ((item.id ?? 0) % 300),
-      ),
-      curve: Curves.easeOutCubic,
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DetalhesAtivoScreen(
-                  ativo: item.toJson(),
-                ),
-              ),
-            ).then((_) => carregarDados()),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: cor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      item.tipo.icone,
-                      color: cor,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              item.ticker,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: cor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                item.tipo.nome,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: cor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_formatarQuantidade(item.quantidade)} cotas',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          AnimatedCounter(
-                            value: item.precoAtual ?? item.precoMedio,
-                            formatter: _formatarValor,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: item.variacaoPercentual >= 0
-                                  ? _profitBg
-                                  : _lossBg,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${item.variacaoPercentual >= 0 ? '+' : ''}${item.variacaoPercentual.toStringAsFixed(2)}%',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: item.variacaoPercentual >= 0
-                                    ? _profitText
-                                    : _lossText,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.edit,
-                          color: AppColors.primary,
-                        ),
-                        onPressed: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => EditarInvestimentoScreen(
-                                investimento: item.toJson(),
-                              ),
-                            ),
-                          );
-                          if (result == true) carregarDados();
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRendaFixaCard(Map<String, dynamic> item) {
-    final rendimentoLiquido = (item['rendimento_liquido'] ?? 0).toDouble();
-    final valorFinal = (item['valor_final'] ?? item['valor'] ?? 0).toDouble();
-
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(
-        milliseconds: 300 + ((item['id'] as int? ?? 0) % 300),
-      ),
-      curve: Curves.easeOutCubic,
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: () => _mostrarDetalhesRendaFixa(item),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.teal.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.savings,
-                      color: Colors.teal,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              item['nome'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.teal.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                item['tipo_renda'],
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.teal,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Aplicação: ${Formatador.data(DateTime.parse(item['data_aplicacao']))}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          'Vencimento: ${Formatador.data(DateTime.parse(item['data_vencimento']))}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.warning,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      AnimatedCounter(
-                        value: valorFinal,
-                        formatter: _formatarValor,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.teal,
-                        ),
-                      ),
-                      if (rendimentoLiquido > 0)
-                        Text(
-                          '+${_formatarValor(rendimentoLiquido)} (${((rendimentoLiquido / (item['valor'] ?? 1)) * 100).toStringAsFixed(2)}%)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: _profitText,
-                          ),
-                        ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.edit,
-                              size: 18,
-                              color: AppColors.primary,
-                            ),
-                            onPressed: () => _editarRendaFixa(item),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete,
-                              size: 18,
-                              color: AppColors.error,
-                            ),
-                            onPressed: () => _excluirRendaFixa(item),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _mostrarDetalhesRendaFixa(Map<String, dynamic> item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Detalhes de renda fixa em desenvolvimento'),
-        backgroundColor: AppColors.warning,
-      ),
-    );
-  }
-
-  void _editarRendaFixa(Map<String, dynamic> item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Edição de renda fixa em desenvolvimento'),
-        backgroundColor: AppColors.warning,
-      ),
-    );
-  }
-
-  void _excluirRendaFixa(Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Excluir Renda Fixa'),
-        content: Text('Deseja realmente excluir ${item['nome']}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await DBHelper().deleteRendaFixa(item['id']);
-              await carregarDados();
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✅ Renda Fixa excluída!'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnaliseTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildCardPatrimonio(),
-          const SizedBox(height: 16),
-          _buildCardLucro(),
-          const SizedBox(height: 16),
-          _buildCardProventosResumo(),
-          const SizedBox(height: 16),
-          _buildGraficoEvolucao(),
-          const SizedBox(height: 16),
-          _buildAlocacaoExpansivel(),
-          const SizedBox(height: 16),
-          _buildCardAlocacao(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardPatrimonio() {
-    final variacaoPercentual =
-        valorInvestido > 0 ? (ganhoCapital / valorInvestido) * 100 : 0.0;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primary, AppColors.secondary],
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'PATRIMÔNIO TOTAL',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _formatarValor(patrimonioTotal),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: variacaoPercentual >= 0
-                        ? _profitBg.withOpacity(0.2)
-                        : _lossBg.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        variacaoPercentual >= 0
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        size: 14,
-                        color:
-                            variacaoPercentual >= 0 ? _profitText : _lossText,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${variacaoPercentual >= 0 ? '+' : ''}${_formatarPercentual(variacaoPercentual)}',
-                        style: TextStyle(
-                          color:
-                              variacaoPercentual >= 0 ? _profitText : _lossText,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Investido: ${_formatarValor(valorInvestido)}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardLucro() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'LUCRO TOTAL',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Ganho Capital',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      AnimatedCounter(
-                        value: ganhoCapital,
-                        formatter: _formatarValor,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: ganhoCapital >= 0 ? _profitText : _lossText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.grey[300],
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Dividendos',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      AnimatedCounter(
-                        value: dividendosRecebidos,
-                        formatter: _formatarValor,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: _profitText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total acumulado:',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  AnimatedCounter(
-                    value: ganhoCapital + dividendosRecebidos,
-                    formatter: _formatarValor,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardProventosResumo() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'PROVENTOS (12M)',
-                    style:
-                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 8),
-                  AnimatedCounter(
-                    value: proventos12Meses,
-                    formatter: _formatarValor,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: _profitText,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Total: ${_formatarValor(dividendosRecebidos)}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textHint),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.monetization_on,
-                color: AppColors.primary,
-                size: 32,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 🔥 MÉTODO CORRIGIDO - _buildGraficoEvolucao
-  Widget _buildGraficoEvolucao() {
-    final evolucao = _calcularEvolucaoMensal();
-
-    if (evolucao.isEmpty) {
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          height: 200,
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.show_chart, size: 48, color: Colors.grey[400]),
-                const SizedBox(height: 16),
-                const Text(
-                  'Sem dados históricos',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Adicione investimentos com datas diferentes',
-                  style: TextStyle(fontSize: 12, color: AppColors.textHint),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    var mesesOrdenados = evolucao.keys.toList();
-
-    // 🔥 CORREÇÃO: Verificar se a lista não está vazia
-    if (mesesOrdenados.isNotEmpty) {
-      mesesOrdenados.sort((a, b) {
-        final aParts = a.split('/');
-        final bParts = b.split('/');
-
-        // Garantir que temos pelo menos 2 partes
-        if (aParts.length < 2 || bParts.length < 2) return 0;
-
-        final aAno = int.tryParse('20${aParts[1]}') ?? 0;
-        final bAno = int.tryParse('20${bParts[1]}') ?? 0;
-        final aMes = _getMesNumero(aParts[0]);
-        final bMes = _getMesNumero(bParts[0]);
-
-        if (aAno != bAno) return aAno.compareTo(bAno);
-        return aMes.compareTo(bMes);
-      });
-    } else {
-      return const SizedBox.shrink();
-    }
-
-    final valoresPatrimonio = <double>[];
-    final valoresInvestido = <double>[];
-
-    for (var mes in mesesOrdenados) {
-      valoresPatrimonio.add(evolucao[mes]!['patrimonio']!);
-      valoresInvestido.add(evolucao[mes]!['investido']!);
-    }
-
-    // 🔥 CORREÇÃO: Verificar se há valores antes de calcular maxY
-    final maxPatrimonio = valoresPatrimonio.isNotEmpty
-        ? valoresPatrimonio.reduce((a, b) => a > b ? a : b)
-        : 1.0;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '📊 Evolução Mensal',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 220,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY: maxPatrimonio * 1.2,
-                  barTouchData: BarTouchData(
-                    enabled: true,
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                        return BarTooltipItem(
-                          _formatarValor(rod.toY),
-                          const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            _formatarCompacto(value),
-                            style: const TextStyle(fontSize: 10),
-                          );
-                        },
-                        reservedSize: 50,
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          if (value.toInt() >= 0 &&
-                              value.toInt() < mesesOrdenados.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                mesesOrdenados[value.toInt()],
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            );
-                          }
-                          return const Text('');
-                        },
-                        reservedSize: 30,
-                      ),
-                    ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  gridData: const FlGridData(show: false),
-                  barGroups: List.generate(mesesOrdenados.length, (index) {
-                    return BarChartGroupData(
-                      x: index,
-                      barRods: [
-                        BarChartRodData(
-                          toY: valoresPatrimonio[index],
-                          color: AppColors.primary,
-                          width: 16,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        BarChartRodData(
-                          toY: valoresInvestido[index],
-                          color: Colors.blue,
-                          width: 16,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ],
-                    );
-                  }),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildLegendaCor('Patrimônio', AppColors.primary),
-                const SizedBox(width: 20),
-                _buildLegendaCor('Investido', Colors.blue),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  int _getMesNumero(String mesTexto) {
-    const meses = {
-      'jan': 1,
-      'fev': 2,
-      'mar': 3,
-      'abr': 4,
-      'mai': 5,
-      'jun': 6,
-      'jul': 7,
-      'ago': 8,
-      'set': 9,
-      'out': 10,
-      'nov': 11,
-      'dez': 12,
-    };
-    return meses[mesTexto.toLowerCase()] ?? 1;
-  }
-
-  Widget _buildAlocacaoExpansivel() {
-    final investimentosConsolidados =
-        _investimentoRepo.consolidarInvestimentos(investimentos);
-    final investimentosPorTipo =
-        _investimentoRepo.agruparPorTipo(investimentosConsolidados);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '📋 ALOCAÇÃO POR ATIVO',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            if (investimentosPorTipo.containsKey('ACAO'))
-              _buildExpansionCategoria(
-                '📈 AÇÕES',
-                Icons.trending_up,
-                Colors.blue,
-                investimentosPorTipo['ACAO']!,
-              ),
-            if (investimentosPorTipo.containsKey('FII'))
-              _buildExpansionCategoria(
-                '🏢 FIIs',
-                Icons.apartment,
-                Colors.green,
-                investimentosPorTipo['FII']!,
-              ),
-            if (rendaFixa.isNotEmpty)
-              _buildExpansionCategoria(
-                '💰 RENDA FIXA',
-                Icons.savings,
-                Colors.teal,
-                rendaFixa
-                    .map((rf) => Investimento(
-                          ticker: rf['nome'],
-                          tipo: TipoInvestimentoExtension.fromString(
-                              'RENDA_FIXA'),
-                          quantidade: 1,
-                          precoMedio: rf['valor'],
-                          precoAtual: rf['valor_final'] ?? rf['valor'],
-                          dataCompra: DateTime.parse(rf['data_aplicacao']),
-                        ))
-                    .toList(),
-              ),
-            if (investimentosPorTipo.containsKey('CRIPTO'))
-              _buildExpansionCategoria(
-                '🪙 CRIPTO',
-                Icons.currency_bitcoin,
-                Colors.amber,
-                investimentosPorTipo['CRIPTO']!,
-              ),
-            if (investimentosPorTipo.containsKey('ETF'))
-              _buildExpansionCategoria(
-                '📊 ETFs',
-                Icons.show_chart,
-                AppColors.primary,
-                investimentosPorTipo['ETF']!,
-              ),
-            if (investimentosPorTipo.containsKey('BDR'))
-              _buildExpansionCategoria(
-                '🌎 BDRs',
-                Icons.public,
-                Colors.teal,
-                investimentosPorTipo['BDR']!,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExpansionCategoria(
-    String titulo,
-    IconData icone,
-    Color cor,
-    List<Investimento> ativos,
-  ) {
-    final totalCategoria = ativos.fold<double>(
-      0,
-      (sum, item) => sum + item.valorAtual,
-    );
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: cor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icone, color: cor, size: 20),
-          ),
-          title: Text(
-            titulo,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: cor,
-            ),
-          ),
-          subtitle: Text(
-            '${ativos.length} ativos • Total: ${_formatarValor(totalCategoria)}',
-            style:
-                const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          initiallyExpanded: false,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          childrenPadding: const EdgeInsets.only(bottom: 8),
-          children:
-              ativos.map((ativo) => _buildAtivoLinha(ativo, cor)).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAtivoLinha(Investimento ativo, Color cor) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Colors.grey[200]!, width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              ativo.ticker,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              '${_formatarQuantidade(ativo.quantidade)} ${ativo.quantidade == 1 ? 'operação' : 'operações'}',
-              style:
-                  const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              _formatarValor(ativo.valorAtual),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              textAlign: TextAlign.right,
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.only(left: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: ativo.variacaoPercentual >= 0 ? _profitBg : _lossBg,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              '${ativo.variacaoPercentual >= 0 ? '+' : ''}${ativo.variacaoPercentual.toStringAsFixed(1)}%',
-              style: TextStyle(
-                fontSize: 10,
-                color: ativo.variacaoPercentual >= 0 ? _profitText : _lossText,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardAlocacao() {
-    final total = valorPorTipo.values.fold(0.0, (a, b) => a + b);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Resumo por Tipo',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            ...valorPorTipo.entries.map((entry) {
-              final percentual = total > 0 ? (entry.value / total) * 100 : 0.0;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _getNomeTipo(entry.key),
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          _formatarPercentual(percentual),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    LinearProgressIndicator(
-                      value: percentual / 100,
-                      backgroundColor: Colors.grey[200],
-                      color: _getCorTipo(entry.key),
-                      minHeight: 8,
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getNomeTipo(String tipo) {
-    switch (tipo) {
-      case 'ACAO':
-        return '📈 Ações';
-      case 'FII':
-        return '🏢 FIIs';
-      case 'RENDA_FIXA':
-        return '💰 Renda Fixa';
-      case 'CRIPTO':
-        return '🪙 Cripto';
-      default:
-        return tipo;
-    }
-  }
-
-  Color _getCorTipo(String tipo) {
-    switch (tipo) {
-      case 'ACAO':
-        return Colors.blue;
-      case 'FII':
-        return Colors.green;
-      case 'RENDA_FIXA':
-        return Colors.teal;
-      case 'CRIPTO':
-        return Colors.amber;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Widget _buildLegendaCor(String texto, Color cor) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: cor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          texto,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-        ),
-      ],
-    );
   }
 }
 
@@ -1856,30 +876,30 @@ class _InvestimentosSkeleton extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           child: SkeletonLoader(
             child: Container(
-              height: 150,
+              height: 130,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
           ),
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: 5,
             itemBuilder: (context, index) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: SkeletonLoader(
                   child: Container(
-                    height: 100,
+                    height: 90,
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),

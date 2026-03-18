@@ -1,3 +1,0 @@
-git add .
-git commit -m "🔥 Correções finais: removidos warnings de switches com default inatingível"
-git push

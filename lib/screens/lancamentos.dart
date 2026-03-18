@@ -8,7 +8,7 @@ import 'nova_transacao.dart';
 import 'editar_transacao.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
-import '../constants/app_categories.dart'; // 🔥 IMPORTAÇÃO ADICIONADA!
+import '../constants/app_categories.dart';
 import '../widgets/primary_card.dart';
 import '../widgets/modern_card.dart';
 import '../widgets/gradient_button.dart';
@@ -53,7 +53,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
 
   final List<String> tipos = const ['Todos', 'Receita', 'Gasto'];
 
-  // 🔥 CATEGORIAS DINÂMICAS DO AppCategories!
   final List<String> categorias = [
     'Todas',
     ...AppCategories.gastos,
@@ -267,22 +266,27 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Lançamentos'),
+        toolbarHeight: 50, // 🔥 AppBar mais compacto
+        title: const Text(
+          'Gastos',
+          style: TextStyle(fontSize: 18),
+        ),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.sort),
+            icon: const Icon(Icons.sort, size: 20), // 🔥 Ícone menor
             onPressed: _mostrarOpcoesOrdenacao,
             tooltip: 'Ordenar',
           ),
           IconButton(
-            icon: const Icon(Icons.filter_list),
+            icon: const Icon(Icons.filter_list, size: 20), // 🔥 Ícone menor
             onPressed: _mostrarFiltros,
             tooltip: 'Filtrar',
           ),
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, size: 20), // 🔥 Ícone menor
             onPressed: _carregarLancamentos,
             tooltip: 'Atualizar',
           ),
@@ -291,7 +295,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add, color: Colors.white, size: 24),
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -318,7 +322,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
 
     return Column(
       children: [
-        _buildResumoCard(),
+        _buildResumoCardCompacto(), // 🔥 Versão compacta do resumo
         if (_filtrosAtivos) _buildFiltrosIndicador(),
         Expanded(
           child: lancamentos.isEmpty
@@ -331,19 +335,20 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     );
   }
 
-  Widget _buildResumoCard() {
+  // 🔥 Card de resumo mais compacto
+  Widget _buildResumoCardCompacto() {
     final receitas = _resumoMes?['receitas'] ?? _totalReceitas;
     final despesas = _resumoMes?['despesas'] ?? _totalDespesas;
     final saldo = _resumoMes?['saldo'] ?? _saldo;
 
     return Container(
-      margin: const EdgeInsets.all(AppSizes.paddingL),
-      padding: const EdgeInsets.all(AppSizes.paddingXL),
+      margin: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
+      padding: const EdgeInsets.all(16), // 🔥 Reduzido de 24 para 16
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.primary, AppColors.secondary],
         ),
-        borderRadius: BorderRadius.circular(AppSizes.radiusXXL),
+        borderRadius: BorderRadius.circular(16), // 🔥 Reduzido de 24 para 16
       ),
       child: Column(
         children: [
@@ -354,16 +359,17 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Saldo do Mês',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                    'Saldo',
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: 11), // 🔥 Reduzido
                   ),
-                  const SizedBox(height: AppSizes.paddingXS),
+                  const SizedBox(height: 2),
                   AnimatedCounter(
                     value: saldo,
                     formatter: Formatador.moeda,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: 18, // 🔥 Reduzido de 20 para 18
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -371,34 +377,34 @@ class _LancamentosScreenState extends State<LancamentosScreen>
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.paddingM,
-                  vertical: AppSizes.paddingXS,
+                  horizontal: 10,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(AppSizes.radiusXL),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   Formatador.mesAno(DateTime.now()),
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSizes.paddingL),
+          const SizedBox(height: 12), // 🔥 Reduzido de 16 para 12
           Row(
             children: [
               Expanded(
-                child: _buildResumoItem(
+                child: _buildResumoItemCompacto(
                   'Receitas',
                   receitas,
                   Icons.arrow_upward,
                   AppColors.success,
                 ),
               ),
-              const SizedBox(width: AppSizes.paddingM),
+              const SizedBox(width: 8), // 🔥 Reduzido de 16 para 8
               Expanded(
-                child: _buildResumoItem(
+                child: _buildResumoItemCompacto(
                   'Despesas',
                   despesas,
                   Icons.arrow_downward,
@@ -412,31 +418,31 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     );
   }
 
-  Widget _buildResumoItem(
+  Widget _buildResumoItemCompacto(
       String titulo, double valor, IconData icone, Color cor) {
     return Container(
-      padding: const EdgeInsets.all(AppSizes.paddingM),
+      padding: const EdgeInsets.all(10), // 🔥 Reduzido de 16 para 10
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+        borderRadius: BorderRadius.circular(8), // 🔥 Reduzido de 12 para 8
       ),
       child: Row(
         children: [
-          Icon(icone, size: AppSizes.iconXS, color: cor),
-          const SizedBox(width: AppSizes.paddingS),
+          Icon(icone, size: 14, color: cor), // 🔥 Ícone menor
+          const SizedBox(width: 6),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 titulo,
-                style: const TextStyle(color: Colors.white70, fontSize: 11),
+                style: const TextStyle(color: Colors.white70, fontSize: 10),
               ),
               AnimatedCounter(
                 value: valor,
                 formatter: Formatador.moeda,
                 style: TextStyle(
                   color: cor,
-                  fontSize: 14,
+                  fontSize: 12, // 🔥 Reduzido de 14 para 12
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -450,14 +456,14 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   Widget _buildFiltrosIndicador() {
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSizes.paddingL, vertical: AppSizes.paddingS),
+          horizontal: AppSizes.paddingL, vertical: 4),
       child: Row(
         children: [
           Expanded(
             child: Text(
               _textoFiltrosAtivos,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: AppColors.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
@@ -465,11 +471,10 @@ class _LancamentosScreenState extends State<LancamentosScreen>
           ),
           TextButton.icon(
             onPressed: _limparFiltros,
-            icon: const Icon(Icons.clear, size: 16),
-            label: const Text('Limpar'),
+            icon: const Icon(Icons.clear, size: 14),
+            label: const Text('Limpar', style: TextStyle(fontSize: 11)),
             style: TextButton.styleFrom(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppSizes.paddingS),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               minimumSize: Size.zero,
             ),
           ),
@@ -481,19 +486,20 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   Widget _buildLista() {
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(AppSizes.paddingL),
+      padding: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
       itemCount: _lancamentosFiltrados.length + (_temMaisItens ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _lancamentosFiltrados.length) {
           return const Center(
             child: Padding(
-              padding: EdgeInsets.all(AppSizes.paddingL),
+              padding: EdgeInsets.all(12),
               child: CircularProgressIndicator(),
             ),
           );
         }
         final item = _lancamentosFiltrados[index];
-        return _LancamentoCard(
+        return _LancamentoCardCompacto(
+          // 🔥 Versão compacta do card
           item: item,
           onRefresh: _carregarLancamentos,
         );
@@ -523,7 +529,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
 
     switch (_ordenacaoAtual) {
       case Ordenacao.dataDesc:
-        filtros.add('Ordenado por: Data (recente)');
+        filtros.add('Ordenado por: Data');
         break;
       case Ordenacao.dataAsc:
         filtros.add('Ordenado por: Data (antigo)');
@@ -564,13 +570,13 @@ class _LancamentosScreenState extends State<LancamentosScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.filter_alt,
-              size: AppSizes.iconXL, color: AppColors.textHint),
-          const SizedBox(height: AppSizes.paddingL),
+              size: 48, color: AppColors.textHint), // 🔥 Ícone menor
+          const SizedBox(height: 12),
           const Text(
             'Nenhum resultado com os filtros atuais',
-            style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
-          const SizedBox(height: AppSizes.paddingS),
+          const SizedBox(height: 12),
           GradientButton(
             text: 'Limpar filtros',
             icon: Icons.clear,
@@ -585,28 +591,27 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppSizes.radiusXL)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(AppSizes.paddingXL),
+          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 'Ordenar por',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: AppSizes.paddingXL),
+              const SizedBox(height: 16),
               _buildOrdenacaoItem(
-                'Data (mais recente)',
+                'Data (recente)',
                 Ordenacao.dataDesc,
                 Icons.calendar_today,
               ),
               _buildOrdenacaoItem(
-                'Data (mais antigo)',
+                'Data (antigo)',
                 Ordenacao.dataAsc,
                 Icons.calendar_today,
               ),
@@ -631,18 +636,20 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     return ListTile(
       leading: Icon(
         icone,
+        size: 20,
         color: _ordenacaoAtual == valor ? AppColors.primary : Colors.grey,
       ),
       title: Text(
         titulo,
         style: TextStyle(
+          fontSize: 14,
           color: _ordenacaoAtual == valor ? AppColors.primary : Colors.black,
           fontWeight:
               _ordenacaoAtual == valor ? FontWeight.bold : FontWeight.normal,
         ),
       ),
       trailing: _ordenacaoAtual == valor
-          ? const Icon(Icons.check, color: AppColors.primary)
+          ? const Icon(Icons.check, color: AppColors.primary, size: 18)
           : null,
       onTap: () {
         setState(() {
@@ -659,14 +666,13 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppSizes.radiusXL)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateModal) {
             return Container(
-              padding: const EdgeInsets.all(AppSizes.paddingXL),
+              padding: const EdgeInsets.all(16),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -675,17 +681,19 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                     const Text(
                       'Filtros',
                       style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: AppSizes.paddingXL),
+                    const SizedBox(height: 16),
                     const Text('Tipo',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: AppSizes.paddingS),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13)),
+                    const SizedBox(height: 8),
                     Wrap(
-                      spacing: AppSizes.paddingS,
+                      spacing: 6,
                       children: tipos.map((tipo) {
                         return FilterChip(
-                          label: Text(tipo),
+                          label:
+                              Text(tipo, style: const TextStyle(fontSize: 12)),
                           selected: filtroTipo == tipo,
                           onSelected: (_) {
                             setStateModal(() {
@@ -695,15 +703,17 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: AppSizes.paddingL),
+                    const SizedBox(height: 12),
                     const Text('Categoria',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: AppSizes.paddingS),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13)),
+                    const SizedBox(height: 8),
                     Wrap(
-                      spacing: AppSizes.paddingS,
+                      spacing: 6,
                       children: categorias.map((categoria) {
                         return FilterChip(
-                          label: Text(categoria),
+                          label: Text(categoria,
+                              style: const TextStyle(fontSize: 11)),
                           selected: filtroCategoria == categoria,
                           onSelected: (_) {
                             setStateModal(() {
@@ -713,30 +723,31 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: AppSizes.paddingL),
+                    const SizedBox(height: 12),
                     const Text('Período',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: AppSizes.paddingS),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13)),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
-                          child: _buildDataPicker(
-                            'Data inicial',
+                          child: _buildDataPickerCompacto(
+                            'Início',
                             dataInicio,
                             (date) => setStateModal(() => dataInicio = date),
                           ),
                         ),
-                        const SizedBox(width: AppSizes.paddingS),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: _buildDataPicker(
-                            'Data final',
+                          child: _buildDataPickerCompacto(
+                            'Fim',
                             dataFim,
                             (date) => setStateModal(() => dataFim = date),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppSizes.paddingXL),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
@@ -749,10 +760,11 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                                 dataFim = null;
                               });
                             },
-                            child: const Text('Limpar'),
+                            child: const Text('Limpar',
+                                style: TextStyle(fontSize: 13)),
                           ),
                         ),
-                        const SizedBox(width: AppSizes.paddingM),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: GradientButton(
                             text: 'Aplicar',
@@ -774,7 +786,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     );
   }
 
-  Widget _buildDataPicker(
+  Widget _buildDataPickerCompacto(
       String label, DateTime? data, Function(DateTime) onSelect) {
     return InkWell(
       onTap: () async {
@@ -788,22 +800,20 @@ class _LancamentosScreenState extends State<LancamentosScreen>
         if (picked != null) onSelect(picked);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSizes.paddingM,
-          vertical: AppSizes.paddingL,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           border: Border.all(color: Colors.grey[400]!),
-          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            const Icon(Icons.calendar_today, size: AppSizes.iconXS),
-            const SizedBox(width: AppSizes.paddingS),
+            const Icon(Icons.calendar_today, size: 14),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
-                data == null ? label : DateFormat('dd/MM/yyyy').format(data),
+                data == null ? label : DateFormat('dd/MM').format(data),
                 style: TextStyle(
+                  fontSize: 12,
                   color: data == null ? AppColors.textHint : Colors.black,
                 ),
               ),
@@ -815,11 +825,12 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   }
 }
 
-class _LancamentoCard extends StatelessWidget {
+// 🔥 Card de lançamento compacto
+class _LancamentoCardCompacto extends StatelessWidget {
   final Map<String, dynamic> item;
   final VoidCallback onRefresh;
 
-  const _LancamentoCard({
+  const _LancamentoCardCompacto({
     required this.item,
     required this.onRefresh,
   });
@@ -834,7 +845,7 @@ class _LancamentoCard extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
-      margin: const EdgeInsets.only(bottom: AppSizes.paddingM),
+      margin: const EdgeInsets.only(bottom: 8), // 🔥 Reduzido de 16 para 8
       child: ModernCard(
         onTap: () async {
           final result = await Navigator.push(
@@ -847,73 +858,83 @@ class _LancamentoCard extends StatelessWidget {
             onRefresh.call();
           }
         },
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: cor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppSizes.radiusM),
+        child: Padding(
+          padding: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
+          child: Row(
+            children: [
+              // Ícone menor
+              Container(
+                width: 40, // 🔥 Reduzido de 48 para 40
+                height: 40,
+                decoration: BoxDecoration(
+                  color: cor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icone, color: cor, size: 20),
               ),
-              child: Icon(icone, color: cor, size: 24),
-            ),
-            const SizedBox(width: AppSizes.paddingL),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['descricao'] ?? 'Sem descrição',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+              const SizedBox(width: 12), // 🔥 Reduzido de 16 para 12
+
+              // Informações
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['descricao'] ?? 'Sem descrição',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14, // 🔥 Reduzido de 16 para 14
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: AppSizes.paddingXS),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingS,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: cor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                        ),
-                        child: Text(
-                          item['categoria'] ?? 'Outros',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: cor,
-                            fontWeight: FontWeight.bold,
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            item['categoria'] ?? 'Outros',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: cor,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: AppSizes.paddingS),
-                      Text(
-                        Formatador.data(DateTime.parse(item['data'])),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                        const SizedBox(width: 6),
+                        Text(
+                          Formatador.data(DateTime.parse(item['data'])),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            AnimatedCounter(
-              value: item['valor']?.toDouble() ?? 0,
-              formatter: Formatador.moeda,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: cor,
+
+              // Valor
+              AnimatedCounter(
+                value: item['valor']?.toDouble() ?? 0,
+                formatter: Formatador.moeda,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14, // 🔥 Reduzido de 16 para 14
+                  color: cor,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -928,11 +949,11 @@ class _LancamentosSkeleton extends StatelessWidget {
     return Column(
       children: [
         Container(
-          margin: const EdgeInsets.all(AppSizes.paddingL),
-          padding: const EdgeInsets.all(AppSizes.paddingXL),
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(AppSizes.radiusXXL),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             children: [
@@ -941,36 +962,36 @@ class _LancamentosSkeleton extends StatelessWidget {
                 children: [
                   SkeletonLoader(
                     child: Container(
-                      width: 100,
-                      height: 40,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SkeletonLoader(
-                    child: Container(
                       width: 80,
                       height: 30,
                       color: Colors.white,
                     ),
                   ),
+                  SkeletonLoader(
+                    child: Container(
+                      width: 60,
+                      height: 24,
+                      color: Colors.white,
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: AppSizes.paddingL),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: SkeletonLoader(
                       child: Container(
-                        height: 50,
+                        height: 40,
                         color: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(width: AppSizes.paddingM),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: SkeletonLoader(
                       child: Container(
-                        height: 50,
+                        height: 40,
                         color: Colors.white,
                       ),
                     ),
@@ -982,17 +1003,17 @@ class _LancamentosSkeleton extends StatelessWidget {
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(AppSizes.paddingL),
+            padding: const EdgeInsets.all(12),
             itemCount: 5,
             itemBuilder: (context, index) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: AppSizes.paddingM),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: SkeletonLoader(
                   child: Container(
-                    height: 80,
+                    height: 70,
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusL),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),

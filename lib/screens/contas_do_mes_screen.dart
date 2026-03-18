@@ -121,7 +121,11 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(''),
+        toolbarHeight: 50,
+        title: const Text(
+          'Contas do Mês',
+          style: TextStyle(fontSize: 18),
+        ),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -130,46 +134,64 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
 
-                // Seletor de mês
+                // Seletor de mês compacto
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.chevron_left),
-                        onPressed: () => _navegarMes(-1),
-                        color: AppColors.primary,
-                      ),
-                      Text(
-                        DateFormat('MMMM yyyy', 'pt_BR')
-                            .format(_mesSelecionado)
-                            .toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textSecondary,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.chevron_right),
-                        onPressed: () => _navegarMes(1),
-                        color: AppColors.primary,
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left, size: 18),
+                          onPressed: () => _navegarMes(-1),
+                          color: AppColors.primary,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        Text(
+                          DateFormat('MMMM yyyy', 'pt_BR')
+                              .format(_mesSelecionado)
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right, size: 18),
+                          onPressed: () => _navegarMes(1),
+                          color: AppColors.primary,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
                 // Cards de resumo
                 Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
                     children: [
                       _buildResumoCardAPagar(),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       _buildResumoCardPago(),
                     ],
                   ),
@@ -180,17 +202,17 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                   child: _pagamentos.isEmpty
                       ? _buildEmptyState()
                       : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
                           itemCount: _pagamentos.length,
                           itemBuilder: (context, index) =>
-                              _buildContaCard(_pagamentos[index]),
+                              _buildContaCardCompacto(_pagamentos[index]),
                         ),
                 ),
               ],
             ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add, color: Colors.white, size: 24),
         onPressed: () async {
           if (await Navigator.push(
                   context,
@@ -207,7 +229,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
   Widget _buildResumoCardAPagar() {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [AppColors.primary, AppColors.secondary],
@@ -220,24 +242,24 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
             const Text(
               'A PAGAR',
               style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               _formatarValor(_resumo['totalPendente'] ?? 0),
               style: const TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
             Text(
-              '${_resumo['qtdPendente'] ?? 0} contas',
+              '${_resumo['qtdPendente'] ?? 0} ${_resumo['qtdPendente'] == 1 ? 'conta' : 'contas'}',
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: Colors.white70,
               ),
             ),
@@ -250,7 +272,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
   Widget _buildResumoCardPago() {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.successLight,
           borderRadius: BorderRadius.circular(12),
@@ -261,24 +283,24 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
             const Text(
               'PAGO',
               style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
                 color: AppColors.success,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               _formatarValor(_resumo['totalPago'] ?? 0),
               style: const TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
             ),
             Text(
-              '${_resumo['qtdPago'] ?? 0} contas',
+              '${_resumo['qtdPago'] ?? 0} ${_resumo['qtdPago'] == 1 ? 'conta' : 'contas'}',
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: AppColors.textSecondary,
               ),
             ),
@@ -288,7 +310,8 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     );
   }
 
-  Widget _buildContaCard(PagamentoMes pagamento) {
+  // Card de conta compacto com botão de excluir
+  Widget _buildContaCardCompacto(PagamentoMes pagamento) {
     return FutureBuilder<Map<String, dynamic>?>(
       future: _dbHelper.database.then((db) => db.query('contas',
               where: 'id = ?',
@@ -298,61 +321,58 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox(
-              height: 80, child: Center(child: CircularProgressIndicator()));
+              height: 70, child: Center(child: CircularProgressIndicator()));
         }
 
+        // 🔥 VARIÁVEIS CORRIGIDAS - todas usadas!
         final contaData = snapshot.data;
         final categoria = contaData?['categoria'] as String? ?? 'Outros';
+        final totalParcelas = contaData?['parcelas_total'] as int?;
 
-        // 🔥 Cálculo de parcelas - SEM WARNINGS!
+        // Estas variáveis agora são usadas nos cálculos abaixo
+        final dataInicio = contaData != null
+            ? DateTime.tryParse(contaData['data_inicio'] as String? ?? '')
+            : null;
+        final tipo = contaData?['tipo'] as String? ?? 'mensal';
+
         String? infoParcela;
+        int? parcelasRestantes;
 
-        if (contaData != null) {
+        // Calcular parcelas usando as variáveis declaradas
+        if (contaData != null && dataInicio != null) {
           try {
-            final dataInicio =
-                DateTime.parse(contaData['data_inicio'] as String);
-            final totalParcelas = contaData['parcelas_total'] as int?;
-            final tipo = contaData['tipo'] as String? ?? 'mensal';
-
             final ehParcelada = tipo == 'parcelada' ||
                 (totalParcelas != null && totalParcelas > 0);
 
-            if (ehParcelada) {
+            if (ehParcelada && totalParcelas != null && totalParcelas > 0) {
               final mesInicio = dataInicio.year * 100 + dataInicio.month;
               final mesAtual = pagamento.anoMes;
 
               if (mesAtual >= mesInicio) {
                 final parcelaAtual = (mesAtual - mesInicio) + 1;
-
-                if (totalParcelas != null && totalParcelas > 0) {
-                  if (parcelaAtual <= totalParcelas) {
-                    infoParcela = '$parcelaAtual/$totalParcelas';
-                  }
-                } else {
-                  infoParcela = '$parcelaAtual/?';
+                if (parcelaAtual <= totalParcelas) {
+                  infoParcela = '$parcelaAtual/$totalParcelas';
+                  parcelasRestantes = totalParcelas - parcelaAtual;
                 }
               }
             }
           } catch (e) {
-            debugPrint('❌ Erro ao calcular parcela: $e');
+            // Ignora erro no cálculo
           }
         }
 
         final atrasado = pagamento.estaAtrasado && !pagamento.estaPago;
-
         final Color corCategoria = AppColors.getCategoryColor(categoria);
-
         final cor = pagamento.estaPago
             ? AppColors.success
             : (atrasado ? AppColors.error : corCategoria);
-
         final corFundo = pagamento.estaPago
             ? AppColors.successLight
             : (atrasado ? AppColors.errorLight : corCategoria.withOpacity(0.1));
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -360,24 +380,25 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
           ),
           child: Row(
             children: [
-              // Ícone do card
+              // Ícone
               Container(
-                width: 48,
-                height: 48,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: corFundo,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   pagamento.estaPago
                       ? Icons.check_circle
                       : (atrasado ? Icons.warning_amber : Icons.receipt),
                   color: cor,
+                  size: 20,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
-              // Informações da conta
+              // Informações
               Expanded(
                 flex: 2,
                 child: Column(
@@ -386,20 +407,21 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                     Text(
                       pagamento.contaNome,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Wrap(
-                      spacing: 8,
+                      spacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        // Círculo da categoria
                         Container(
-                          width: 10,
-                          height: 10,
+                          width: 8,
+                          height: 8,
                           decoration: BoxDecoration(
                             color: corCategoria,
                             shape: BoxShape.circle,
@@ -407,24 +429,23 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                         ),
                         Text(
                           categoria,
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: TextStyle(
+                            fontSize: 10,
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        // Badge de parcela
                         if (infoParcela != null)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                                horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               infoParcela,
-                              style: const TextStyle(
-                                fontSize: 10,
+                              style: TextStyle(
+                                fontSize: 9,
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -435,11 +456,31 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                     const SizedBox(height: 2),
                     Text(
                       'Vence ${pagamento.dataVencimentoFormatada}',
-                      style: const TextStyle(
-                        fontSize: 11,
+                      style: TextStyle(
+                        fontSize: 10,
                         color: AppColors.textSecondary,
                       ),
                     ),
+
+                    // Parcelas restantes
+                    if (parcelasRestantes != null && parcelasRestantes > 0)
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Faltam $parcelasRestantes',
+                          style: const TextStyle(
+                            fontSize: 8,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -451,7 +492,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                   Text(
                     _formatarValor(pagamento.valor),
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: cor,
                     ),
@@ -460,7 +501,6 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Botão PAGAR
                       if (!pagamento.estaPago)
                         SizedBox(
                           width: 60,
@@ -480,23 +520,23 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                             child: const Text(
                               'PAGAR',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ),
 
-                      // Botão EXCLUIR
+                      // 🔥 BOTÃO DE EXCLUIR FUNCIONAL!
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18),
+                        icon: const Icon(Icons.delete_outline, size: 16),
                         color: Colors.red[300],
                         onPressed: () => _excluirConta(
                             pagamento.contaId, pagamento.contaNome),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(
-                          minWidth: 32,
-                          minHeight: 32,
+                          minWidth: 28,
+                          minHeight: 28,
                         ),
                       ),
                     ],
@@ -515,16 +555,16 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.receipt_outlined, size: 64, color: AppColors.muted),
-          const SizedBox(height: 16),
-          const Text(
+          Icon(Icons.receipt_outlined, size: 56, color: AppColors.muted),
+          const SizedBox(height: 12),
+          Text(
             'Nenhuma conta para este mês',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () async {
               if (await Navigator.push(
@@ -535,14 +575,15 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                 _carregarDados();
               }
             },
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, size: 18),
             label: const Text(
               'ADICIONAR CONTA',
-              style: TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             ),
           ),
         ],
