@@ -26,7 +26,7 @@ class BackupServicePlus {
       final metas = await db.getAllMetas();
       final rendaFixa = await db.getAllRendaFixa();
 
-      // 🔥 NOVO: Exportar contas do mês
+      // Exportar contas do mês
       final contas = await _exportarContasDoMes();
 
       final lancamentosLimpos = lancamentos.map((item) {
@@ -103,21 +103,21 @@ class BackupServicePlus {
 
       final dados = {
         'metadata': {
-          'versao': '3.0', // 🔥 Versão atualizada
+          'versao': '3.0',
           'data_exportacao': DateHelper.agoraBrasilia().toIso8601String(),
           'total_lancamentos': lancamentos.length,
           'total_investimentos': investimentos.length,
           'total_proventos': proventos.length,
           'total_metas': metas.length,
           'total_renda_fixa': rendaFixa.length,
-          'total_contas': contas.length, // 🔥 NOVO
+          'total_contas': contas.length,
         },
         'lancamentos': lancamentosLimpos,
         'investimentos': investimentosLimpos,
         'proventos': proventosLimpos,
         'metas': metasLimpos,
         'renda_fixa': rendaFixaLimpos,
-        'contas': contas, // 🔥 NOVO: contas do mês
+        'contas': contas,
       };
 
       LoggerService.success(
@@ -129,7 +129,7 @@ class BackupServicePlus {
     }
   }
 
-  // 🔥 NOVO: Exportar contas do mês
+  // Exportar contas do mês
   Future<List<Map<String, dynamic>>> _exportarContasDoMes() async {
     final database = await db.database;
 
@@ -159,31 +159,76 @@ class BackupServicePlus {
     }).toList();
   }
 
-  // ========== SALVAR BACKUP EM ARQUIVO ==========
+  // ========== SALVAR BACKUP EM ARQUIVO (NO ONEDRIVE - BACKUPSAPPFINANCEIRO) ==========
   Future<String?> salvarBackupEmArquivo() async {
     try {
       final dados = await exportarTodosDados();
 
-      final agoraBrasilia = DateHelper.agoraBrasilia();
-      final timestamp = agoraBrasilia.millisecondsSinceEpoch;
+      // 🔥 NOME FIXO - SEMPRE O MESMO!
+      const fileName = 'backup_financeiro.json';
 
-      final directory = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${directory.path}/backups_json');
+      // 🔥 CAMINHO CORRETO - OneDrive na pasta BackupsAppFinanceiro
+      final String oneDrivePath =
+          'C:\\Users\\anaep\\OneDrive\\BackupsAppFinanceiro';
+      final backupDir = Directory(oneDrivePath);
 
       if (!await backupDir.exists()) {
         await backupDir.create(recursive: true);
+        LoggerService.info('📁 Pasta criada: $oneDrivePath');
       }
 
-      final fileName = 'backup_$timestamp.json';
       final file = File('${backupDir.path}\\$fileName');
 
       final jsonString = jsonEncode(dados);
+
+      // 🔥 SOBRESCREVE o arquivo se já existir
       await file.writeAsString(jsonString, encoding: utf8);
 
       LoggerService.success('✅ Backup salvo em: ${file.path}');
+
       return file.path;
     } catch (e) {
       LoggerService.error('❌ Erro ao salvar backup', e);
+      return null;
+    }
+  }
+
+  // ========== VERIFICAR SE BACKUP EXISTE ==========
+  Future<bool> backupExiste() async {
+    try {
+      final String oneDrivePath =
+          'C:\\Users\\anaep\\OneDrive\\BackupsAppFinanceiro';
+      final file = File('$oneDrivePath\\backup_financeiro.json');
+
+      return await file.exists();
+    } catch (e) {
+      LoggerService.error('❌ Erro ao verificar backup', e);
+      return false;
+    }
+  }
+
+  // ========== OBTER INFORMAÇÕES DO BACKUP ==========
+  Future<Map<String, dynamic>?> getInfoBackup() async {
+    try {
+      final String oneDrivePath =
+          'C:\\Users\\anaep\\OneDrive\\BackupsAppFinanceiro';
+      final file = File('$oneDrivePath\\backup_financeiro.json');
+
+      if (!await file.exists()) {
+        return null;
+      }
+
+      final jsonString = await file.readAsString();
+      final Map<String, dynamic> dados = jsonDecode(jsonString);
+
+      return {
+        'existe': true,
+        'data_modificacao': await file.lastModified(),
+        'tamanho': await file.length(),
+        'metadata': dados['metadata'],
+      };
+    } catch (e) {
+      LoggerService.error('❌ Erro ao obter info do backup', e);
       return null;
     }
   }
@@ -272,7 +317,7 @@ class BackupServicePlus {
         }
       }
 
-      // 🔥 NOVO: Restaurar contas do mês
+      // Restaurar contas do mês
       if (dados['contas'] != null) {
         for (var item in dados['contas']) {
           try {
@@ -317,18 +362,21 @@ class BackupServicePlus {
   // ========== LISTAR BACKUPS DISPONÍVEIS ==========
   Future<List<File>> listarBackups() async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${directory.path}/backups_json');
+      final String oneDrivePath =
+          'C:\\Users\\anaep\\OneDrive\\BackupsAppFinanceiro';
+      final backupDir = Directory(oneDrivePath);
 
       if (!await backupDir.exists()) {
         return [];
       }
 
-      final files = backupDir.listSync().whereType<File>().toList();
-      files.sort(
-          (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+      // Retorna o arquivo fixo se existir
+      final file = File('$oneDrivePath\\backup_financeiro.json');
+      if (await file.exists()) {
+        return [file];
+      }
 
-      return files;
+      return [];
     } catch (e) {
       LoggerService.error('❌ Erro ao listar backups', e);
       return [];
@@ -344,12 +392,12 @@ class BackupServicePlus {
 
       await database.execute('PRAGMA foreign_keys = OFF');
 
-      // 🔥 NOVA ORDEM: respeitar foreign keys
+      // Respeitar foreign keys
       final tabelas = [
-        DBHelper.tabelaPagamentos, // Primeiro as que têm foreign key
+        DBHelper.tabelaPagamentos,
         DBHelper.tabelaParcelas,
         DBHelper.tabelaDepositosMeta,
-        DBHelper.tabelaContas, // Depois as tabelas principais
+        DBHelper.tabelaContas,
         DBHelper.tabelaContasFixas,
         DBHelper.tabelaProventos,
         DBHelper.tabelaRendaFixa,
