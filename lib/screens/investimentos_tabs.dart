@@ -27,6 +27,7 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/formatters.dart';
+import '../widgets/grafico_evolucao.dart';
 
 class InvestimentosTabsScreen extends StatefulWidget {
   const InvestimentosTabsScreen({super.key});
@@ -61,6 +62,9 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
   double proventos12Meses = 0;
   double proventosMesAtual = 0;
   double proventosProjetados = 0;
+
+  // Dados para o gráfico de evolução
+  List<Map<String, dynamic>> dadosEvolucao = [];
 
   final Map<String, double> valorPorTipo = {};
   final Map<String, double> proventosPorAtivo = {};
@@ -123,6 +127,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
       rendaFixa = await DBHelper().getAllRendaFixa();
 
       _calcularEstatisticas();
+      _gerarDadosEvolucao();
     } catch (e) {
       debugPrint('❌ Erro ao carregar dados: $e');
     }
@@ -132,6 +137,104 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     setState(() {
       carregando = false;
     });
+  }
+
+  // 🟢 GERAR DADOS REAIS PARA O GRÁFICO DE EVOLUÇÃO
+  void _gerarDadosEvolucao() {
+    dadosEvolucao.clear();
+
+    // Mapa para agrupar valores por mês
+    Map<String, Map<String, double>> valoresPorMes = {};
+
+    debugPrint('🔍 Processando investimentos para o gráfico...');
+
+    // 1. Processar investimentos (ações, FIIs, etc)
+    for (var inv in investimentos) {
+      final dataCompra = inv.dataCompra;
+
+      final chaveMes =
+          '${dataCompra.year}-${dataCompra.month.toString().padLeft(2, '0')}';
+
+      if (!valoresPorMes.containsKey(chaveMes)) {
+        valoresPorMes[chaveMes] = {
+          'patrimonio': 0,
+          'investido': 0,
+        };
+      }
+
+      final valorInvestidoMes = inv.quantidade * inv.precoMedio;
+      final valorPatrimonioMes =
+          inv.quantidade * (inv.precoAtual ?? inv.precoMedio);
+
+      valoresPorMes[chaveMes]!['investido'] =
+          (valoresPorMes[chaveMes]!['investido'] ?? 0) + valorInvestidoMes;
+      valoresPorMes[chaveMes]!['patrimonio'] =
+          (valoresPorMes[chaveMes]!['patrimonio'] ?? 0) + valorPatrimonioMes;
+
+      debugPrint(
+          '   📌 ${inv.ticker}: Compra em ${dataCompra.month}/${dataCompra.year} - R\$ ${valorInvestidoMes.toStringAsFixed(2)}');
+    }
+
+    // 2. Processar renda fixa
+    for (var rf in rendaFixa) {
+      final dataAplicacao = DateTime.parse(rf['data_aplicacao'] as String);
+      final chaveMes =
+          '${dataAplicacao.year}-${dataAplicacao.month.toString().padLeft(2, '0')}';
+
+      if (!valoresPorMes.containsKey(chaveMes)) {
+        valoresPorMes[chaveMes] = {
+          'patrimonio': 0,
+          'investido': 0,
+        };
+      }
+
+      final valorInvestidoMes = rf['valor'] as double;
+      final valorPatrimonioMes =
+          rf['valor_final'] as double? ?? valorInvestidoMes;
+
+      valoresPorMes[chaveMes]!['investido'] =
+          (valoresPorMes[chaveMes]!['investido'] ?? 0) + valorInvestidoMes;
+      valoresPorMes[chaveMes]!['patrimonio'] =
+          (valoresPorMes[chaveMes]!['patrimonio'] ?? 0) + valorPatrimonioMes;
+
+      debugPrint(
+          '   📌 Renda Fixa: Aplicação em ${dataAplicacao.month}/${dataAplicacao.year} - R\$ ${valorInvestidoMes.toStringAsFixed(2)}');
+    }
+
+    // 3. Ordenar por data
+    final mesesOrdenados = valoresPorMes.keys.toList()..sort();
+
+    double patrimonioAcumulado = 0;
+    double investidoAcumulado = 0;
+
+    debugPrint('\n📊 Dados acumulados por mês:');
+
+    for (String mes in mesesOrdenados) {
+      final ano = int.parse(mes.split('-')[0]);
+      final mesNum = int.parse(mes.split('-')[1]);
+
+      // SÓ ADICIONA SE FOR JANEIRO DE 2026 EM DIANTE
+      if (ano > 2026 || (ano == 2026 && mesNum >= 1)) {
+        final valores = valoresPorMes[mes]!;
+
+        patrimonioAcumulado += valores['patrimonio']!;
+        investidoAcumulado += valores['investido']!;
+
+        dadosEvolucao.add({
+          'data': DateTime(ano, mesNum, 1),
+          'patrimonio': patrimonioAcumulado,
+          'investido': investidoAcumulado,
+        });
+
+        debugPrint('   📊 Mês ${mesNum.toString().padLeft(2, '0')}/$ano:');
+        debugPrint(
+            '      Patrimônio: R\$ ${patrimonioAcumulado.toStringAsFixed(2)}');
+        debugPrint(
+            '      Investido:  R\$ ${investidoAcumulado.toStringAsFixed(2)}');
+      }
+    }
+
+    debugPrint('\n✅ Total de meses com dados: ${dadosEvolucao.length}');
   }
 
   void _calcularEstatisticas() {
@@ -359,19 +462,210 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
+  // ========== CARD DE INVESTIMENTO POR MÊS (CORRIGIDO - SEM VARIÁVEL NÃO USADA) ==========
+  Widget _buildInvestimentoPorMes() {
+    // Agrupar investimentos por mês (últimos 6 meses)
+    final Map<String, double> investidoPorMes = {};
+
+    // ✅ LINHA REMOVIDA: final agora = DateTime.now(); (não era usada)
+
+    // Processar investimentos
+    for (var inv in investimentos) {
+      final dataCompra = inv.dataCompra;
+      final chaveMes =
+          '${dataCompra.month.toString().padLeft(2, '0')}/${dataCompra.year}';
+      final valorInvestido = inv.quantidade * inv.precoMedio;
+
+      investidoPorMes[chaveMes] =
+          (investidoPorMes[chaveMes] ?? 0) + valorInvestido;
+    }
+
+    // Processar renda fixa
+    for (var rf in rendaFixa) {
+      final dataAplicacao = DateTime.parse(rf['data_aplicacao'] as String);
+      final chaveMes =
+          '${dataAplicacao.month.toString().padLeft(2, '0')}/${dataAplicacao.year}';
+      final valorInvestido = rf['valor'] as double;
+
+      investidoPorMes[chaveMes] =
+          (investidoPorMes[chaveMes] ?? 0) + valorInvestido;
+    }
+
+    // Ordenar meses (do mais recente para o mais antigo)
+    final mesesOrdenados = investidoPorMes.keys.toList()
+      ..sort((a, b) {
+        final aParts = a.split('/');
+        final bParts = b.split('/');
+        final aDate = DateTime(int.parse(aParts[1]), int.parse(aParts[0]));
+        final bDate = DateTime(int.parse(bParts[1]), int.parse(bParts[0]));
+        return bDate.compareTo(aDate); // Mais recente primeiro
+      });
+
+    // Pegar últimos 6 meses
+    final ultimosMeses = mesesOrdenados.take(6).toList();
+
+    if (ultimosMeses.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Encontrar o maior valor para a barra de progresso
+    final maiorValor = investidoPorMes.values.reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child:
+                    Icon(Icons.trending_up, color: AppColors.primary, size: 16),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Investimento por Mês',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...ultimosMeses.map((mes) {
+            final valor = investidoPorMes[mes]!;
+            final percentual = valor / maiorValor;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 45,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      mes,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        Container(
+                          height: 8,
+                          width: MediaQuery.of(context).size.width *
+                              0.3 *
+                              percentual,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.primary, AppColors.secondary],
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    Formatador.moedaCompacta(valor),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total últimos 6 meses:',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                Text(
+                  Formatador.moedaCompacta(
+                    ultimosMeses.fold(
+                        0.0, (sum, mes) => sum + investidoPorMes[mes]!),
+                  ),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ========== GRÁFICO DE EVOLUÇÃO ==========
   Widget _buildGraficoEvolucao() {
-    return Container(
-      height: 130,
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Center(
-        child: Text(
-          'Gráfico de evolução',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+    if (dadosEvolucao.isEmpty) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(16),
         ),
+        child: const Center(
+          child: Text(
+            'Sem dados históricos para exibir',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 400,
+      margin: const EdgeInsets.only(top: 8),
+      child: GraficoEvolucao(
+        dados: dadosEvolucao,
+        valorInvestido: valorInvestido,
+        patrimonioAtual: patrimonioTotal,
       ),
     );
   }
@@ -424,20 +718,20 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ========== PAINEL PRINCIPAL OTIMIZADO ==========
+  // ========== PAINEL PRINCIPAL ==========
   Widget _buildPainelTab() {
     final rentabilidade = valorInvestido > 0
         ? ((patrimonioTotal - valorInvestido) / valorInvestido) * 100
         : 0.0;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
+      padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          // Card principal - OTIMIZADO
+          // Card principal
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14), // 🔥 Reduzido de 20 para 14
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [AppColors.primary, AppColors.secondary],
@@ -462,16 +756,16 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                     letterSpacing: 1,
                   ),
                 ),
-                const SizedBox(height: 4), // 🔥 Reduzido pela metade
+                const SizedBox(height: 4),
                 Text(
                   Formatador.moeda(patrimonioTotal),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 26, // 🔥 Reduzido de 32 para 26
+                    fontSize: 26,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8), // 🔥 Reduzido de 12 para 8
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Container(
@@ -521,10 +815,15 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
             ),
           ),
 
-          const SizedBox(height: 12), // 🔥 Reduzido de 16 para 12
+          const SizedBox(height: 12),
 
-          // Card de resumo compacto (substitui os 3 cards)
+          // Card de resumo compacto
           _buildResumoCompacto(),
+
+          const SizedBox(height: 12),
+
+          // CARD DE INVESTIMENTO POR MÊS
+          _buildInvestimentoPorMes(),
 
           const SizedBox(height: 12),
 
@@ -570,7 +869,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
 
           const SizedBox(height: 12),
 
-          // Gráfico de evolução
+          // GRÁFICO DE EVOLUÇÃO
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -582,7 +881,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '📊 Evolução',
+                  '📊 Evolução Patrimonial',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -745,6 +1044,43 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     }
   }
 
+  Future<void> _atualizarPrecos() async {
+    setState(() => atualizando = true);
+
+    int atualizados = 0;
+    int comErro = 0;
+
+    for (var item in investimentos) {
+      if (item.id == null) continue;
+
+      try {
+        final preco = await _yahooService.getPrecoAtual(item.ticker);
+        if (preco != null && preco > 0) {
+          await _investimentoRepo.updatePrecoAtual(item.id!, preco);
+          atualizados++;
+        } else {
+          comErro++;
+        }
+      } catch (e) {
+        comErro++;
+        debugPrint('❌ Erro ao atualizar ${item.ticker}: $e');
+      }
+    }
+
+    await carregarDados();
+    setState(() => atualizando = false);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '$atualizados ativos atualizados${comErro > 0 ? ', $comErro erros' : ''}'),
+          backgroundColor: comErro > 0 ? AppColors.warning : AppColors.success,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -760,16 +1096,16 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        toolbarHeight: 50, // 🔥 Reduzido para 50
+        toolbarHeight: 50,
         title: const Text(
           'Investimentos',
-          style: TextStyle(fontSize: 18), // 🔥 Fonte ligeiramente reduzida
+          style: TextStyle(fontSize: 18),
         ),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(45), // 🔥 Altura reduzida
+          preferredSize: const Size.fromHeight(45),
           child: Container(
             color: AppColors.primary,
             child: TabBar(
@@ -777,14 +1113,11 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               indicatorColor: Colors.white,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
-              labelStyle: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600), // 🔥 Reduzido para 12
+              labelStyle:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               unselectedLabelStyle: const TextStyle(fontSize: 12),
               tabs: const [
-                Tab(
-                    icon: Icon(Icons.dashboard, size: 18),
-                    text: 'PAINEL'), // 🔥 Ícone 18
+                Tab(icon: Icon(Icons.dashboard, size: 18), text: 'PAINEL'),
                 Tab(icon: Icon(Icons.history, size: 18), text: 'LANÇAMENTOS'),
                 Tab(
                     icon: Icon(Icons.monetization_on, size: 18),
@@ -828,43 +1161,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
             )
           : null,
     );
-  }
-
-  Future<void> _atualizarPrecos() async {
-    setState(() => atualizando = true);
-
-    int atualizados = 0;
-    int comErro = 0;
-
-    for (var item in investimentos) {
-      if (item.id == null) continue;
-
-      try {
-        final preco = await _yahooService.getPrecoAtual(item.ticker);
-        if (preco != null && preco > 0) {
-          await _investimentoRepo.updatePrecoAtual(item.id!, preco);
-          atualizados++;
-        } else {
-          comErro++;
-        }
-      } catch (e) {
-        comErro++;
-        debugPrint('❌ Erro ao atualizar ${item.ticker}: $e');
-      }
-    }
-
-    await carregarDados();
-    setState(() => atualizando = false);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '$atualizados ativos atualizados${comErro > 0 ? ', $comErro erros' : ''}'),
-          backgroundColor: comErro > 0 ? AppColors.warning : AppColors.success,
-        ),
-      );
-    }
   }
 }
 

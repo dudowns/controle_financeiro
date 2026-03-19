@@ -38,22 +38,47 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
         ),
         child: const Center(
           child: Text(
-            'Sem dados para 2026',
+            'Sem dados para exibir',
             style: TextStyle(color: Colors.grey),
           ),
         ),
       );
     }
 
-    // Preparar dados para o gráfico
+    // Preparar dados para o gráfico - APENAS MESES COM INVESTIMENTO
     final List<_EvolucaoData> chartData = [];
     for (var item in widget.dados) {
       final data = item['data'] as DateTime;
-      chartData.add(_EvolucaoData(
-        mes: '${data.month.toString().padLeft(2, '0')}/26',
-        patrimonio: item['patrimonio'],
-        investido: item['investido'],
-      ));
+      final patrimonio = item['patrimonio'];
+      final investido = item['investido'];
+
+      // 🔥 SÓ ADICIONA SE TIVER INVESTIMENTO (patrimônio > 0 OU investido > 0)
+      if (patrimonio > 0 || investido > 0) {
+        chartData.add(_EvolucaoData(
+          mes:
+              '${data.month.toString().padLeft(2, '0')}/${data.year.toString().substring(2, 4)}',
+          patrimonio: patrimonio,
+          investido: investido,
+        ));
+      }
+    }
+
+    // Se depois do filtro não tiver dados
+    if (chartData.isEmpty) {
+      return Container(
+        height: 450,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: const Center(
+          child: Text(
+            'Nenhum investimento neste período',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
     }
 
     return Container(
@@ -68,9 +93,9 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Título
-          const Text(
-            '📊 Evolução do Patrimônio - 2026',
-            style: TextStyle(
+          Text(
+            '📊 Evolução do Patrimônio - ${_getAnoRange(chartData)}',
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
@@ -107,17 +132,20 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
 
           const SizedBox(height: 8),
 
-          // GRÁFICO DE BARRAS SOBREPOSTAS
+          // GRÁFICO DE BARRAS LADO A LADO
           Expanded(
             child: SfCartesianChart(
               plotAreaBorderWidth: 0,
               primaryXAxis: CategoryAxis(
-                labelRotation: 45,
+                labelRotation: 0,
                 majorGridLines: const MajorGridLines(width: 0),
                 axisLine: const AxisLine(width: 1),
-                labelStyle:
-                    const TextStyle(fontSize: 9, color: Color(0xFF666666)),
+                labelStyle: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
                 majorTickLines: const MajorTickLines(size: 0),
+                // Intervalo automático - mostra todos os meses com dados
               ),
               primaryYAxis: NumericAxis(
                 numberFormat: NumberFormat.currency(
@@ -131,16 +159,12 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
                   dashArray: [5, 5],
                 ),
                 minimum: 0,
+                // Formatação brasileira nos valores do eixo Y
                 axisLabelFormatter: (axisLabelRenderArgs) {
                   final value = axisLabelRenderArgs.value;
-                  if (value >= 1000000) {
+                  if (value >= 1000) {
                     return ChartAxisLabel(
-                      'R\$ ${(value / 1000000).toStringAsFixed(1)}M',
-                      const TextStyle(fontSize: 10, color: Color(0xFF666666)),
-                    );
-                  } else if (value >= 1000) {
-                    return ChartAxisLabel(
-                      'R\$ ${(value / 1000).toStringAsFixed(1)}K',
+                      'R\$ ${(value / 1000).toStringAsFixed(0)}k',
                       const TextStyle(fontSize: 10, color: Color(0xFF666666)),
                     );
                   } else {
@@ -156,6 +180,51 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
                 format: 'point.y',
                 header: '',
                 canShowMarker: false,
+                // Tooltip em português
+                builder: (dynamic data, dynamic point, dynamic series,
+                    int pointIndex, int seriesIndex) {
+                  return Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          series.name == 'Patrimônio'
+                              ? '💰 Patrimônio'
+                              : '💵 Aplicado',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          NumberFormat.currency(
+                            locale: 'pt_BR',
+                            symbol: 'R\$ ',
+                            decimalDigits: 2,
+                          ).format(point.y),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: series.name == 'Patrimônio'
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFF2196F3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
               series: _getSeries(chartData),
             ),
@@ -163,7 +232,7 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
 
           const SizedBox(height: 8),
 
-          // Rodapé com valores atuais
+          // Rodapé com valores atuais (em R$ brasileiro)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -195,6 +264,20 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
         ],
       ),
     );
+  }
+
+  // 🔥 FUNÇÃO PARA PEGAR O ANO DO PRIMEIRO E ÚLTIMO MÊS
+  String _getAnoRange(List<_EvolucaoData> data) {
+    if (data.isEmpty) return '2026';
+
+    final primeiroMes = data.first.mes.split('/')[1];
+    final ultimoMes = data.last.mes.split('/')[1];
+
+    if (primeiroMes == ultimoMes) {
+      return '20$primeiroMes';
+    } else {
+      return '20$primeiroMes-20$ultimoMes';
+    }
   }
 
   // LEGENDA INTERATIVA
@@ -237,7 +320,7 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
     );
   }
 
-  // SÉRIES COM BARRAS
+  // 🟢 SÉRIES COM BARRAS LADO A LADO
   List<CartesianSeries<_EvolucaoData, String>> _getSeries(
       List<_EvolucaoData> data) {
     final List<CartesianSeries<_EvolucaoData, String>> series = [];
@@ -250,11 +333,11 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
           xValueMapper: (data, _) => data.mes,
           yValueMapper: (data, _) => data.patrimonio,
           color: const Color(0xFF4CAF50),
-          width: 0.9,
-          spacing: 0.5,
-          borderRadius: BorderRadius.circular(2),
+          width: 0.4,
+          spacing: 0.1,
+          borderRadius: BorderRadius.circular(4),
           dataLabelSettings: const DataLabelSettings(isVisible: false),
-          opacity: _mostrarInvestido ? 0.7 : 1.0,
+          opacity: _mostrarInvestido ? 0.8 : 1.0,
         ),
       );
     }
@@ -267,11 +350,11 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
           xValueMapper: (data, _) => data.mes,
           yValueMapper: (data, _) => data.investido,
           color: const Color(0xFF2196F3),
-          width: 0.9,
-          spacing: 0.5,
-          borderRadius: BorderRadius.circular(2),
+          width: 0.4,
+          spacing: 0.1,
+          borderRadius: BorderRadius.circular(4),
           dataLabelSettings: const DataLabelSettings(isVisible: false),
-          opacity: _mostrarPatrimonio ? 0.7 : 1.0,
+          opacity: _mostrarPatrimonio ? 0.8 : 1.0,
         ),
       );
     }
@@ -279,6 +362,7 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
     return series;
   }
 
+  // Item do rodapé com formato brasileiro
   Widget _buildValorItem(String label, double valor, Color cor) {
     return Row(
       children: [
@@ -302,7 +386,11 @@ class _GraficoEvolucaoState extends State<GraficoEvolucao> {
               ),
             ),
             Text(
-              Formatador.moedaCompacta(valor),
+              NumberFormat.currency(
+                locale: 'pt_BR',
+                symbol: 'R\$ ',
+                decimalDigits: 2,
+              ).format(valor),
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
