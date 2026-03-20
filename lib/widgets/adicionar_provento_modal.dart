@@ -43,14 +43,13 @@ class AdicionarProventoModal extends StatefulWidget {
 }
 
 class _AdicionarProventoModalState extends State<AdicionarProventoModal> {
+  final DBHelper _dbHelper = DBHelper();
   final _formKey = GlobalKey<FormState>();
   final _valorController = TextEditingController();
 
   String? _tickerSelecionado;
   DateTime _dataPagamento = DateTime.now();
   bool _carregando = false;
-
-  final DBHelper _dbHelper = DBHelper();
 
   @override
   void initState() {
@@ -62,6 +61,88 @@ class _AdicionarProventoModalState extends State<AdicionarProventoModal> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 VERIFICAÇÃO MELHORADA!
+    if (widget.tickersDisponiveis.isEmpty) {
+      return Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Adicionar Provento',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.warning_amber,
+                      size: 64,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Nenhum investimento cadastrado',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Adicione um investimento primeiro\npara poder registrar proventos.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary(context),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  GradientButton(
+                    text: 'ADICIONAR INVESTIMENTO',
+                    icon: Icons.trending_up,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      // Navegar para adicionar investimento
+                      Navigator.pushNamed(context, '/add-investimento');
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         // 🔝 CABEÇALHO
@@ -232,7 +313,7 @@ class _AdicionarProventoModalState extends State<AdicionarProventoModal> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Botões - CORRIGIDO!
+                  // Botões
                   Row(
                     children: [
                       Expanded(
@@ -257,7 +338,6 @@ class _AdicionarProventoModalState extends State<AdicionarProventoModal> {
                               )
                             : GradientButton(
                                 text: 'SALVAR',
-                                icon: Icons.check,
                                 onPressed: _salvarProvento,
                               ),
                       ),
