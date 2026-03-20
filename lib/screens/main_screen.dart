@@ -5,13 +5,13 @@ import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../services/theme_service.dart';
 import '../widgets/theme_selector.dart';
-import '../widgets/backup_modal.dart'; // 🔥 NOVO IMPORT!
+import '../widgets/backup_modal.dart';
+import '../widgets/notificacoes_modal.dart'; // 🔥 NOVO!
 import 'dashboard.dart';
 import 'lancamentos.dart';
 import 'contas_do_mes_screen.dart';
 import 'investimentos_tabs.dart';
 import 'metas_screen.dart';
-import 'notificacoes_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -83,12 +83,12 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             gradient: AppColors.primaryGradient,
           ),
         ),
-        // 🎨 BOTÕES NO AppBar
+        // 🎨 BOTÕES NO AppBar - TODOS MODAIS!
         actions: [
           // 🟢 SELETOR DE TEMA (POPUP)
           const ThemeSelector(),
 
-          // 🟢 BOTÃO DE BACKUP (AGORA USA MODAL!)
+          // 🟢 BOTÃO DE BACKUP (MODAL)
           Container(
             margin: const EdgeInsets.only(right: 4),
             decoration: BoxDecoration(
@@ -101,7 +101,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                 BackupModal.show(
                   context: context,
                   onBackupRealizado: () {
-                    // Se precisar atualizar algo depois do backup
                     debugPrint('Backup realizado/restaurado/excluído');
                   },
                 );
@@ -111,7 +110,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             ),
           ),
 
-          // Botão de Notificações
+          // 🟢 BOTÃO DE NOTIFICAÇÕES (MODAL)
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
@@ -121,12 +120,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             child: IconButton(
               icon: const Icon(Icons.notifications_outlined),
               onPressed: () {
-                // 🔥 NOTIFICAÇÕES TAMBÉM VAI VIRAR MODAL!
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const NotificacoesScreen()),
-                );
+                NotificacoesModal.show(context: context);
               },
               tooltip: 'Notificações',
               color: Colors.white,

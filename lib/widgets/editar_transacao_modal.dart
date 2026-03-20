@@ -57,7 +57,6 @@ class _EditarTransacaoModalState extends State<EditarTransacaoModal> {
   late double _valor;
   bool _carregando = false;
 
-  // Listas dinâmicas baseadas no tipo
   List<String> get _categoriasDisponiveis {
     return _tipoSelecionado == 'receita'
         ? AppCategories.receitas
@@ -134,14 +133,7 @@ class _EditarTransacaoModalState extends State<EditarTransacaoModal> {
           );
         }
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erro ao atualizar: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
+        _mostrarErro('Erro ao atualizar: $e');
       } finally {
         if (mounted) setState(() => _carregando = false);
       }
@@ -188,7 +180,7 @@ class _EditarTransacaoModalState extends State<EditarTransacaoModal> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
+              backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
             child: const Text('EXCLUIR'),
@@ -197,36 +189,35 @@ class _EditarTransacaoModalState extends State<EditarTransacaoModal> {
       ),
     );
 
-    if (confirmar == true) {
+    if (confirmar == true && mounted) {
       setState(() => _carregando = true);
-
       try {
         await _dbHelper.deleteLancamento(widget.lancamento['id']);
-
-        if (mounted) {
-          widget.onAtualizado?.call();
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('🗑️ Lançamento excluído!'),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+        widget.onAtualizado?.call();
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🗑️ Lançamento excluído!'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erro ao excluir: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
+        _mostrarErro('Erro ao excluir: $e');
       } finally {
         if (mounted) setState(() => _carregando = false);
       }
     }
+  }
+
+  void _mostrarErro(String mensagem) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -256,7 +247,6 @@ class _EditarTransacaoModalState extends State<EditarTransacaoModal> {
                 ),
               ),
               const Spacer(),
-              // Botão de excluir no cabeçalho
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
@@ -545,7 +535,6 @@ class _EditarTransacaoModalState extends State<EditarTransacaoModal> {
                               )
                             : GradientButton(
                                 text: 'ATUALIZAR',
-                                icon: Icons.check,
                                 onPressed: _atualizar,
                               ),
                       ),

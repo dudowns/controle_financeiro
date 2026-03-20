@@ -4,8 +4,6 @@ import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
 import '../repositories/lancamento_repository.dart';
 import '../models/lancamento_model.dart';
-import 'nova_transacao.dart';
-import 'editar_transacao.dart'; // ✅ CORRIGIDO: nome do arquivo
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_categories.dart';
@@ -18,7 +16,8 @@ import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/formatters.dart';
 import '../services/performance_service.dart';
-import '../widgets/adicionar_lancamento_modal.dart';
+import '../widgets/nova_transacao_modal.dart';
+import '../widgets/editar_transacao_modal.dart'; // 🔥 IMPORT DO MODAL!
 
 enum Ordenacao { dataDesc, dataAsc, valorDesc, valorAsc }
 
@@ -298,7 +297,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white, size: 24),
         onPressed: () {
-          AdicionarLancamentoModal.show(
+          NovaTransacaoModal.show(
             context: context,
             onSalvo: () {
               _carregarLancamentos();
@@ -545,7 +544,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       message: 'Nenhum lançamento cadastrado',
       buttonText: 'Adicionar lançamento',
       onButtonPressed: () {
-        AdicionarLancamentoModal.show(
+        NovaTransacaoModal.show(
           context: context,
           onSalvo: () {
             _carregarLancamentos();
@@ -823,7 +822,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   }
 }
 
-// Card de lançamento compacto
+// Card de lançamento compacto - AGORA COM MODAL!
 class _LancamentoCardCompacto extends StatelessWidget {
   final Map<String, dynamic> item;
   final VoidCallback onRefresh;
@@ -846,26 +845,14 @@ class _LancamentoCardCompacto extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ModernCard(
         onTap: () async {
-          try {
-            // ✅ CORRIGIDO: nome da classe (deve ser o mesmo do import)
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => EditarTransacaoScreen(lancamento: item),
-              ),
-            );
-            if (result == true) {
+          // ✅ AGORA USA O MODAL DE EDIÇÃO!
+          await EditarTransacaoModal.show(
+            context: context,
+            lancamento: item,
+            onAtualizado: () {
               onRefresh.call();
-            }
-          } catch (e) {
-            debugPrint('Erro ao navegar para editar: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Erro ao abrir edição: $e'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+            },
+          );
         },
         child: Padding(
           padding: const EdgeInsets.all(12),

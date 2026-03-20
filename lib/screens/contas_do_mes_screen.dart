@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
 import '../models/pagamento_model.dart';
 import '../constants/app_colors.dart';
-import 'adicionar_conta_screen.dart';
+import '../widgets/adicionar_conta_modal.dart'; // 🔥 NOVO IMPORT!
 
 class ContasDoMesScreen extends StatefulWidget {
   const ContasDoMesScreen({super.key});
@@ -424,17 +424,17 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                 ),
               ],
             ),
+      // 🔥 FAB AGORA USA O MODAL!
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () async {
-          if (await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AdicionarContaScreen())) ==
-              true) {
-            _carregarDados();
-          }
+        onPressed: () {
+          AdicionarContaModal.show(
+            context: context,
+            onSalvo: () {
+              _carregarDados();
+            },
+          );
         },
       ),
     );
@@ -494,13 +494,12 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
               style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary(context)), // ✅ CORRIGIDO
+                  color: AppColors.textPrimary(context)),
             ),
             Text(
               '${_resumo['qtdPago'] ?? 0} ${_resumo['qtdPago'] == 1 ? 'conta' : 'contas'}',
               style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary(context)), // ✅ CORRIGIDO
+                  fontSize: 11, color: AppColors.textSecondary(context)),
             ),
           ],
         ),
@@ -508,7 +507,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
     );
   }
 
-  // 🟢 CARD PRINCIPAL - COM CORES DINÂMICAS
+  // 🟢 CARD PRINCIPAL - COM PARCELAS CORRETAS!
   Widget _buildContaCard(PagamentoMes pagamento) {
     return FutureBuilder<Map<String, dynamic>>(
       future: _getInfoParcelas(pagamento.contaId),
@@ -574,7 +573,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                       style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary(context)), // ✅ CORRIGIDO
+                          color: AppColors.textPrimary(context)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -596,15 +595,14 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                           categoria,
                           style: TextStyle(
                               fontSize: 10,
-                              color: AppColors.textSecondary(
-                                  context)), // ✅ CORRIGIDO
+                              color: AppColors.textSecondary(context)),
                         ),
                       ],
                     ),
 
                     const SizedBox(height: 4),
 
-                    // 🟢 LINHA DAS PARCELAS
+                    // 🟢 LINHA DAS PARCELAS - CORRIGIDA!
                     if (temParcelas && totalParcelas != null)
                       Wrap(
                         spacing: 8,
@@ -625,7 +623,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                                   Icon(Icons.check_circle,
                                       size: 12, color: Colors.green),
                                   const SizedBox(width: 4),
-                                  const Text(
+                                  Text(
                                     'Concluído',
                                     style: TextStyle(
                                         fontSize: 11,
@@ -692,8 +690,7 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
                       'Vence ${pagamento.dataVencimentoFormatada}',
                       style: TextStyle(
                           fontSize: 10,
-                          color:
-                              AppColors.textSecondary(context)), // ✅ CORRIGIDO
+                          color: AppColors.textSecondary(context)),
                     ),
                   ],
                 ),
@@ -783,15 +780,16 @@ class _ContasDoMesScreenState extends State<ContasDoMesScreen> {
               ),
             ),
           const SizedBox(height: 16),
+
+          // 🔥 BOTÃO DO EMPTY STATE AGORA USA MODAL!
           ElevatedButton.icon(
-            onPressed: () async {
-              if (await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const AdicionarContaScreen())) ==
-                  true) {
-                _carregarDados();
-              }
+            onPressed: () {
+              AdicionarContaModal.show(
+                context: context,
+                onSalvo: () {
+                  _carregarDados();
+                },
+              );
             },
             icon: const Icon(Icons.add, size: 18),
             label: const Text('ADICIONAR CONTA',
