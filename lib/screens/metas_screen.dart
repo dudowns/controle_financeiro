@@ -7,8 +7,8 @@ import '../widgets/modern_card.dart';
 import '../widgets/animated_counter.dart';
 import '../widgets/gradient_button.dart';
 import '../utils/formatters.dart';
+import '../widgets/nova_meta_modal.dart'; // 🔥 NOVO IMPORT!
 import 'detalhes_meta_screen.dart';
-import 'nova_meta_screen.dart';
 
 class MetasScreen extends StatefulWidget {
   const MetasScreen({super.key});
@@ -92,7 +92,7 @@ class _MetasScreenState extends State<MetasScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
         title: const Text(''),
         backgroundColor: AppColors.primary,
@@ -105,7 +105,9 @@ class _MetasScreenState extends State<MetasScreen> {
         ],
       ),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : _metas.isEmpty
               ? _buildEmptyState()
               : ListView.builder(
@@ -119,16 +121,14 @@ class _MetasScreenState extends State<MetasScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const NovaMetaScreen(),
-            ),
+        onPressed: () {
+          // 🔥 AGORA USA O MODAL!
+          NovaMetaModal.show(
+            context: context,
+            onSalvo: () {
+              _carregarMetas();
+            },
           );
-          if (result == true) {
-            _carregarMetas();
-          }
         },
       ),
     );
@@ -152,36 +152,33 @@ class _MetasScreenState extends State<MetasScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             'Nenhuma meta cadastrada',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: AppColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Comece definindo seus objetivos financeiros',
             style: TextStyle(
               fontSize: 14,
-              color: AppColors.textSecondary,
+              color: AppColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 24),
           GradientButton(
             text: 'CRIAR PRIMEIRA META',
             icon: Icons.add,
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NovaMetaScreen(),
-                ),
+            onPressed: () {
+              NovaMetaModal.show(
+                context: context,
+                onSalvo: () {
+                  _carregarMetas();
+                },
               );
-              if (result == true) {
-                _carregarMetas();
-              }
             },
           ),
         ],
@@ -253,10 +250,10 @@ class _MetasScreenState extends State<MetasScreen> {
                     children: [
                       Text(
                         titulo,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: AppColors.textPrimary(context),
                         ),
                       ),
                       if (descricao.isNotEmpty)
@@ -264,7 +261,7 @@ class _MetasScreenState extends State<MetasScreen> {
                           descricao,
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppColors.textSecondary,
+                            color: AppColors.textSecondary(context),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -319,7 +316,7 @@ class _MetasScreenState extends State<MetasScreen> {
                   'Progresso',
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: AppColors.textSecondary(context),
                   ),
                 ),
                 Text(
@@ -356,7 +353,7 @@ class _MetasScreenState extends State<MetasScreen> {
                       'Atual',
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textSecondary(context),
                       ),
                     ),
                     AnimatedCounter(
@@ -365,7 +362,7 @@ class _MetasScreenState extends State<MetasScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: AppColors.textPrimary(context),
                       ),
                     ),
                   ],
@@ -377,7 +374,7 @@ class _MetasScreenState extends State<MetasScreen> {
                       'Meta',
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textSecondary(context),
                       ),
                     ),
                     Text(
@@ -385,7 +382,7 @@ class _MetasScreenState extends State<MetasScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: AppColors.textPrimary(context),
                       ),
                     ),
                   ],
@@ -404,14 +401,14 @@ class _MetasScreenState extends State<MetasScreen> {
                     Icon(
                       Icons.calendar_today,
                       size: 12,
-                      color: AppColors.textSecondary,
+                      color: AppColors.textSecondary(context),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Até ${Formatador.data(dataFim)}',
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textSecondary(context),
                       ),
                     ),
                   ],
@@ -439,7 +436,7 @@ class _MetasScreenState extends State<MetasScreen> {
                         AnimatedCounter(
                           value: falta,
                           formatter: Formatador.moeda,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: AppColors.primary,

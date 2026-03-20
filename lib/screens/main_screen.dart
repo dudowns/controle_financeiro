@@ -1,14 +1,17 @@
 // lib/screens/main_screen.dart
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
+import '../services/theme_service.dart';
+import '../widgets/theme_selector.dart';
+import '../widgets/backup_modal.dart'; // 🔥 NOVO IMPORT!
 import 'dashboard.dart';
 import 'lancamentos.dart';
 import 'contas_do_mes_screen.dart';
 import 'investimentos_tabs.dart';
 import 'metas_screen.dart';
-import 'backup_screen.dart'; // ✅ IMPORT OBRIGATÓRIO!
-import 'notificacoes_screen.dart'; // ✅ IMPORT OBRIGATÓRIO!
+import 'notificacoes_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -61,11 +64,12 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
         title: Text(
           _titles[_currentIndex],
           style: const TextStyle(
-            fontSize: 22,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.5,
           ),
@@ -79,9 +83,12 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             gradient: AppColors.primaryGradient,
           ),
         ),
-        // ✅ BOTÕES NO AppBar - AGORA FUNCIONAM!
+        // 🎨 BOTÕES NO AppBar
         actions: [
-          // Botão de Backup
+          // 🟢 SELETOR DE TEMA (POPUP)
+          const ThemeSelector(),
+
+          // 🟢 BOTÃO DE BACKUP (AGORA USA MODAL!)
           Container(
             margin: const EdgeInsets.only(right: 4),
             decoration: BoxDecoration(
@@ -91,10 +98,12 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             child: IconButton(
               icon: const Icon(Icons.backup_outlined),
               onPressed: () {
-                print('🔹 Backup clicado!');
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const BackupScreen()),
+                BackupModal.show(
+                  context: context,
+                  onBackupRealizado: () {
+                    // Se precisar atualizar algo depois do backup
+                    debugPrint('Backup realizado/restaurado/excluído');
+                  },
                 );
               },
               tooltip: 'Backup',
@@ -112,7 +121,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             child: IconButton(
               icon: const Icon(Icons.notifications_outlined),
               onPressed: () {
-                print('🔹 Notificações clicado!');
+                // 🔥 NOTIFICAÇÕES TAMBÉM VAI VIRAR MODAL!
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -131,13 +140,14 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface(context),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
-            ),
+            if (Theme.of(context).brightness == Brightness.light)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 20,
+                offset: const Offset(0, -5),
+              ),
           ],
         ),
         child: SafeArea(
@@ -192,7 +202,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                   : const AlwaysStoppedAnimation(1.0),
               child: Icon(
                 isSelected ? iconFilled : iconOutlined,
-                color: isSelected ? AppColors.primary : AppColors.muted,
+                color:
+                    isSelected ? AppColors.primary : AppColors.muted(context),
                 size: isSelected ? 26 : 22,
               ),
             ),
@@ -202,7 +213,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             label,
             style: TextStyle(
               fontSize: 10,
-              color: isSelected ? AppColors.primary : AppColors.muted,
+              color: isSelected ? AppColors.primary : AppColors.muted(context),
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),

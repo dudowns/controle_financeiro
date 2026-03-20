@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
 import '../constants/app_colors.dart';
-import '../constants/app_categories.dart'; // 🔥 NOVO!
+import '../constants/app_categories.dart';
 import '../utils/formatters.dart';
 
 class EditarTransacaoScreen extends StatefulWidget {
@@ -29,7 +29,7 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
 
   final List<String> _tipos = ['receita', 'gasto'];
 
-  // 🔥 Listas dinâmicas baseadas no tipo
+  // Listas dinâmicas baseadas no tipo
   List<String> get _categoriasDisponiveis {
     return _tipoSelecionado == 'receita'
         ? AppCategories.receitas
@@ -119,12 +119,25 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Excluir Lançamento'),
-        content: const Text('Deseja realmente excluir este lançamento?'),
+        backgroundColor: AppColors.surface(context), // ✅ DINÂMICO!
+        title: Text(
+          'Excluir Lançamento',
+          style:
+              TextStyle(color: AppColors.textPrimary(context)), // ✅ DINÂMICO!
+        ),
+        content: Text(
+          'Deseja realmente excluir este lançamento?',
+          style:
+              TextStyle(color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(
+                  color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -167,6 +180,7 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background(context), // ✅ DINÂMICO!
       appBar: AppBar(
         title: const Text('Editar Transação'),
         backgroundColor: AppColors.primary,
@@ -186,9 +200,13 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Tipo
-              const Text(
+              Text(
                 'Tipo',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary(context), // ✅ DINÂMICO!
+                ),
               ),
               const SizedBox(height: 8),
               Row(
@@ -205,7 +223,7 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
                           style: TextStyle(
                             color: _tipoSelecionado == tipo
                                 ? Colors.white
-                                : Colors.black,
+                                : AppColors.textPrimary(context), // ✅ DINÂMICO!
                           ),
                         ),
                         selected: _tipoSelecionado == tipo,
@@ -216,7 +234,6 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
                         onSelected: (selected) {
                           setState(() {
                             _tipoSelecionado = tipo;
-                            // 🔥 Reset categoria ao mudar tipo
                             _categoriaSelecionada = 'Outros';
                           });
                         },
@@ -231,10 +248,27 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
               // Descrição
               TextFormField(
                 controller: _descricaoController,
-                decoration: const InputDecoration(
+                style: TextStyle(
+                    color: AppColors.textPrimary(context)), // ✅ DINÂMICO!
+                decoration: InputDecoration(
                   labelText: 'Descrição',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.description),
+                  labelStyle: TextStyle(
+                      color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.description, color: AppColors.primary),
+                  filled: true,
+                  fillColor: AppColors.surface(context), // ✅ DINÂMICO!
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -250,10 +284,28 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
               TextFormField(
                 initialValue: _valor.toStringAsFixed(2).replaceAll('.', ','),
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
+                style: TextStyle(
+                    color: AppColors.textPrimary(context)), // ✅ DINÂMICO!
+                decoration: InputDecoration(
                   labelText: 'Valor',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.attach_money),
+                  labelStyle: TextStyle(
+                      color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  prefixIcon:
+                      Icon(Icons.attach_money, color: AppColors.primary),
+                  filled: true,
+                  fillColor: AppColors.surface(context), // ✅ DINÂMICO!
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -272,13 +324,31 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
 
               const SizedBox(height: 16),
 
-              // 🔥 Categoria - DINÂMICA por tipo!
+              // Categoria - DINÂMICA por tipo!
               DropdownButtonFormField<String>(
                 value: _categoriaSelecionada,
-                decoration: const InputDecoration(
+                dropdownColor: AppColors.surface(context), // ✅ DINÂMICO!
+                style: TextStyle(
+                    color: AppColors.textPrimary(context)), // ✅ DINÂMICO!
+                decoration: InputDecoration(
                   labelText: 'Categoria',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category),
+                  labelStyle: TextStyle(
+                      color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.category, color: AppColors.primary),
+                  filled: true,
+                  fillColor: AppColors.surface(context), // ✅ DINÂMICO!
                 ),
                 items: _categoriasDisponiveis.map((categoria) {
                   return DropdownMenuItem(
@@ -294,7 +364,12 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(categoria),
+                        Text(
+                          categoria,
+                          style: TextStyle(
+                              color: AppColors.textPrimary(
+                                  context)), // ✅ DINÂMICO!
+                        ),
                       ],
                     ),
                   );
@@ -318,16 +393,39 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
               InkWell(
                 onTap: _selecionarData,
                 child: InputDecorator(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Data',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.calendar_today),
+                    labelStyle: TextStyle(
+                        color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(
+                          color: AppColors.border(context)), // ✅ DINÂMICO!
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                          color: AppColors.border(context)), // ✅ DINÂMICO!
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    prefixIcon:
+                        Icon(Icons.calendar_today, color: AppColors.primary),
+                    filled: true,
+                    fillColor: AppColors.surface(context), // ✅ DINÂMICO!
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(Formatador.data(_dataSelecionada)),
-                      const Icon(Icons.arrow_drop_down),
+                      Text(
+                        Formatador.data(_dataSelecionada),
+                        style: TextStyle(
+                            color:
+                                AppColors.textPrimary(context)), // ✅ DINÂMICO!
+                      ),
+                      Icon(Icons.arrow_drop_down,
+                          color:
+                              AppColors.textSecondary(context)), // ✅ DINÂMICO!
                     ],
                   ),
                 ),
@@ -338,10 +436,27 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
               // Observação
               TextFormField(
                 controller: _observacaoController,
-                decoration: const InputDecoration(
+                style: TextStyle(
+                    color: AppColors.textPrimary(context)), // ✅ DINÂMICO!
+                decoration: InputDecoration(
                   labelText: 'Observação (opcional)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.note),
+                  labelStyle: TextStyle(
+                      color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                        color: AppColors.border(context)), // ✅ DINÂMICO!
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.note, color: AppColors.primary),
+                  filled: true,
+                  fillColor: AppColors.surface(context), // ✅ DINÂMICO!
                 ),
                 maxLines: 3,
               ),
@@ -357,8 +472,10 @@ class _EditarTransacaoScreenState extends State<EditarTransacaoScreen> {
                         Navigator.pop(context);
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textSecondary,
-                        side: BorderSide(color: Colors.grey[300]!),
+                        foregroundColor:
+                            AppColors.textSecondary(context), // ✅ DINÂMICO!
+                        side: BorderSide(
+                            color: AppColors.border(context)), // ✅ DINÂMICO!
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: const Text('CANCELAR'),

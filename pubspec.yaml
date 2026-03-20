@@ -20,7 +20,7 @@ dependencies:
   sqflite_common_ffi: ^2.3.0
   path: ^1.8.0
   path_provider: ^2.1.0
-  
+
   # ========== UI E ANIMAÇÕES ==========
   animate_do: ^3.3.4
   flutter_staggered_animations: ^1.1.0
@@ -52,6 +52,7 @@ dependencies:
   # ========== PERFORMANCE ==========
   flutter_native_splash: ^2.3.8
   flutter_launcher_icons: ^0.13.1
+  provider: ^6.1.5+1
 
 dev_dependencies:
   flutter_test:

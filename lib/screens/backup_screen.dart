@@ -74,7 +74,7 @@ class _BackupScreenState extends State<BackupScreen> {
     }
   }
 
-  // 🟢 FUNÇÃO PARA RESTAURAR BACKUP (NOVA!)
+  // 🟢 FUNÇÃO PARA RESTAURAR BACKUP
   Future<void> _restaurarBackupSelecionado() async {
     if (backups.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -93,21 +93,23 @@ class _BackupScreenState extends State<BackupScreen> {
       return;
     }
 
-    // Se tiver só um backup, restaura direto
     if (backups.length == 1) {
       _confirmarRestauracao(backups.first);
       return;
     }
 
-    // Se tiver vários, mostra um dialog para escolher
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface(context),
         title: Row(
           children: [
             const Icon(Icons.restore, color: Colors.orange),
             const SizedBox(width: 12),
-            const Text('Selecione o Backup'),
+            Text(
+              'Selecione o Backup',
+              style: TextStyle(color: AppColors.textPrimary(context)),
+            ),
           ],
         ),
         content: SizedBox(
@@ -126,22 +128,26 @@ class _BackupScreenState extends State<BackupScreen> {
                   decoration: BoxDecoration(
                     color: isMaisRecente
                         ? AppColors.primary.withOpacity(0.1)
-                        : Colors.grey[100],
+                        : AppColors.muted(context).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     isMaisRecente ? Icons.star : Icons.backup,
-                    color: isMaisRecente ? AppColors.primary : Colors.grey[600],
+                    color: isMaisRecente
+                        ? AppColors.primary
+                        : AppColors.textSecondary(context),
                   ),
                 ),
                 title: Text(
                   nome,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textPrimary(context)),
                 ),
                 subtitle: Text(
                   '📅 ${_formatarData(backup)} • 💾 ${_formatarTamanho(backup)}',
-                  style: const TextStyle(fontSize: 11),
+                  style: TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary(context)),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -154,7 +160,10 @@ class _BackupScreenState extends State<BackupScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.textSecondary(context)),
+            ),
           ),
         ],
       ),
@@ -168,6 +177,7 @@ class _BackupScreenState extends State<BackupScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface(context),
         title: Row(
           children: [
             Container(
@@ -179,9 +189,12 @@ class _BackupScreenState extends State<BackupScreen> {
               child: const Icon(Icons.restore, color: Colors.orange),
             ),
             const SizedBox(width: 12),
-            const Text(
+            Text(
               'Restaurar Backup',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary(context),
+              ),
             ),
           ],
         ),
@@ -189,9 +202,9 @@ class _BackupScreenState extends State<BackupScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Você está prestes a restaurar:',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: AppColors.textSecondary(context)),
             ),
             const SizedBox(height: 12),
             Container(
@@ -218,9 +231,10 @@ class _BackupScreenState extends State<BackupScreen> {
                       children: [
                         Text(
                           nome,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
+                            color: AppColors.textPrimary(context),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -229,12 +243,14 @@ class _BackupScreenState extends State<BackupScreen> {
                         Row(
                           children: [
                             Icon(Icons.calendar_today,
-                                size: 12, color: Colors.grey[600]),
+                                size: 12,
+                                color: AppColors.textSecondary(context)),
                             const SizedBox(width: 4),
                             Text(
                               _formatarData(backup),
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[600]),
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary(context)),
                             ),
                           ],
                         ),
@@ -274,7 +290,10 @@ class _BackupScreenState extends State<BackupScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.textSecondary(context)),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -350,6 +369,7 @@ class _BackupScreenState extends State<BackupScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface(context),
         title: Row(
           children: [
             Container(
@@ -361,28 +381,37 @@ class _BackupScreenState extends State<BackupScreen> {
               child: const Icon(Icons.delete, color: Colors.red),
             ),
             const SizedBox(width: 12),
-            const Text('Excluir Backup'),
+            Text(
+              'Excluir Backup',
+              style: TextStyle(color: AppColors.textPrimary(context)),
+            ),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Deseja excluir o backup:'),
+            Text(
+              'Deseja excluir o backup:',
+              style: TextStyle(color: AppColors.textSecondary(context)),
+            ),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: AppColors.muted(context).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.backup, color: Colors.grey[600]),
+                  Icon(Icons.backup, color: AppColors.textSecondary(context)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       nome,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary(context),
+                      ),
                     ),
                   ),
                 ],
@@ -393,7 +422,10 @@ class _BackupScreenState extends State<BackupScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.textSecondary(context)),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -456,8 +488,8 @@ class _BackupScreenState extends State<BackupScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.background,
-              Colors.white,
+              AppColors.background(context),
+              AppColors.surface(context),
             ],
           ),
         ),
@@ -470,7 +502,7 @@ class _BackupScreenState extends State<BackupScreen> {
                     const SizedBox(height: 16),
                     Text(
                       'Carregando backups...',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: AppColors.textSecondary(context)),
                     ),
                   ],
                 ),
@@ -505,11 +537,12 @@ class _BackupScreenState extends State<BackupScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
+                                      Text(
                                         'Proteja seus dados',
                                         style: TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
+                                          color: AppColors.textPrimary(context),
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -517,7 +550,8 @@ class _BackupScreenState extends State<BackupScreen> {
                                         'Faça backup e restaure quando precisar',
                                         style: TextStyle(
                                           fontSize: 12,
-                                          color: AppColors.textSecondary,
+                                          color:
+                                              AppColors.textSecondary(context),
                                         ),
                                       ),
                                     ],
@@ -539,7 +573,7 @@ class _BackupScreenState extends State<BackupScreen> {
 
                             const SizedBox(height: 12),
 
-                            // 🟢 BOTÃO RESTAURAR BACKUP (NOVO!)
+                            // 🟢 BOTÃO RESTAURAR BACKUP
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
@@ -581,13 +615,14 @@ class _BackupScreenState extends State<BackupScreen> {
                                   width: 120,
                                   height: 120,
                                   decoration: BoxDecoration(
-                                    color: Colors.grey[100],
+                                    color: AppColors.muted(context)
+                                        .withOpacity(0.1),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     Icons.cloud_off,
                                     size: 48,
-                                    color: Colors.grey[400],
+                                    color: AppColors.muted(context),
                                   ),
                                 ),
                                 const SizedBox(height: 24),
@@ -596,7 +631,7 @@ class _BackupScreenState extends State<BackupScreen> {
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.grey[700],
+                                    color: AppColors.textPrimary(context),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -604,7 +639,7 @@ class _BackupScreenState extends State<BackupScreen> {
                                   'Clique em "FAZER BACKUP AGORA" para começar',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.grey[500],
+                                    color: AppColors.textSecondary(context),
                                   ),
                                 ),
                               ],
@@ -640,7 +675,8 @@ class _BackupScreenState extends State<BackupScreen> {
                                                 : null,
                                             color: isMaisRecente
                                                 ? null
-                                                : Colors.grey[100],
+                                                : AppColors.muted(context)
+                                                    .withOpacity(0.1),
                                             borderRadius:
                                                 BorderRadius.circular(12),
                                           ),
@@ -650,7 +686,7 @@ class _BackupScreenState extends State<BackupScreen> {
                                                 : Icons.backup,
                                             color: isMaisRecente
                                                 ? Colors.white
-                                                : Colors.grey[600],
+                                                : AppColors.primary,
                                             size: 24,
                                           ),
                                         ),
@@ -674,7 +710,8 @@ class _BackupScreenState extends State<BackupScreen> {
                                                         color: isMaisRecente
                                                             ? AppColors.primary
                                                             : AppColors
-                                                                .textPrimary,
+                                                                .textPrimary(
+                                                                    context),
                                                       ),
                                                       maxLines: 1,
                                                       overflow:
@@ -713,25 +750,33 @@ class _BackupScreenState extends State<BackupScreen> {
                                                 children: [
                                                   Icon(Icons.calendar_today,
                                                       size: 12,
-                                                      color: Colors.grey[600]),
+                                                      color: AppColors
+                                                          .textSecondary(
+                                                              context)),
                                                   const SizedBox(width: 4),
                                                   Text(
                                                     _formatarData(backup),
                                                     style: TextStyle(
                                                       fontSize: 11,
-                                                      color: Colors.grey[600],
+                                                      color: AppColors
+                                                          .textSecondary(
+                                                              context),
                                                     ),
                                                   ),
                                                   const SizedBox(width: 12),
                                                   Icon(Icons.data_usage,
                                                       size: 12,
-                                                      color: Colors.grey[600]),
+                                                      color: AppColors
+                                                          .textSecondary(
+                                                              context)),
                                                   const SizedBox(width: 4),
                                                   Text(
                                                     _formatarTamanho(backup),
                                                     style: TextStyle(
                                                       fontSize: 11,
-                                                      color: Colors.grey[600],
+                                                      color: AppColors
+                                                          .textSecondary(
+                                                              context),
                                                     ),
                                                   ),
                                                 ],

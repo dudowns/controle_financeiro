@@ -5,7 +5,7 @@ import '../database/db_helper.dart';
 import '../repositories/lancamento_repository.dart';
 import '../models/lancamento_model.dart';
 import 'nova_transacao.dart';
-import 'editar_transacao.dart';
+import 'editar_transacao.dart'; // ✅ CORRIGIDO: nome do arquivo
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_categories.dart';
@@ -18,6 +18,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/formatters.dart';
 import '../services/performance_service.dart';
+import '../widgets/adicionar_lancamento_modal.dart';
 
 enum Ordenacao { dataDesc, dataAsc, valorDesc, valorAsc }
 
@@ -264,9 +265,9 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     super.build(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        toolbarHeight: 50, // 🔥 AppBar mais compacto
+        toolbarHeight: 50,
         title: const Text(
           'Gastos',
           style: TextStyle(fontSize: 18),
@@ -276,17 +277,17 @@ class _LancamentosScreenState extends State<LancamentosScreen>
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.sort, size: 20), // 🔥 Ícone menor
+            icon: const Icon(Icons.sort, size: 20),
             onPressed: _mostrarOpcoesOrdenacao,
             tooltip: 'Ordenar',
           ),
           IconButton(
-            icon: const Icon(Icons.filter_list, size: 20), // 🔥 Ícone menor
+            icon: const Icon(Icons.filter_list, size: 20),
             onPressed: _mostrarFiltros,
             tooltip: 'Filtrar',
           ),
           IconButton(
-            icon: const Icon(Icons.refresh, size: 20), // 🔥 Ícone menor
+            icon: const Icon(Icons.refresh, size: 20),
             onPressed: _carregarLancamentos,
             tooltip: 'Atualizar',
           ),
@@ -296,16 +297,13 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white, size: 24),
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const NovaTransacaoScreen(),
-            ),
+        onPressed: () {
+          AdicionarLancamentoModal.show(
+            context: context,
+            onSalvo: () {
+              _carregarLancamentos();
+            },
           );
-          if (result == true) {
-            await _carregarLancamentos();
-          }
         },
       ),
     );
@@ -322,7 +320,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
 
     return Column(
       children: [
-        _buildResumoCardCompacto(), // 🔥 Versão compacta do resumo
+        _buildResumoCardCompacto(),
         if (_filtrosAtivos) _buildFiltrosIndicador(),
         Expanded(
           child: lancamentos.isEmpty
@@ -335,20 +333,19 @@ class _LancamentosScreenState extends State<LancamentosScreen>
     );
   }
 
-  // 🔥 Card de resumo mais compacto
   Widget _buildResumoCardCompacto() {
     final receitas = _resumoMes?['receitas'] ?? _totalReceitas;
     final despesas = _resumoMes?['despesas'] ?? _totalDespesas;
     final saldo = _resumoMes?['saldo'] ?? _saldo;
 
     return Container(
-      margin: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
-      padding: const EdgeInsets.all(16), // 🔥 Reduzido de 24 para 16
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.primary, AppColors.secondary],
         ),
-        borderRadius: BorderRadius.circular(16), // 🔥 Reduzido de 24 para 16
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
@@ -360,8 +357,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                 children: [
                   const Text(
                     'Saldo',
-                    style: TextStyle(
-                        color: Colors.white70, fontSize: 11), // 🔥 Reduzido
+                    style: TextStyle(color: Colors.white70, fontSize: 11),
                   ),
                   const SizedBox(height: 2),
                   AnimatedCounter(
@@ -369,7 +365,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                     formatter: Formatador.moeda,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 18, // 🔥 Reduzido de 20 para 18
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -391,7 +387,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
               ),
             ],
           ),
-          const SizedBox(height: 12), // 🔥 Reduzido de 16 para 12
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -402,7 +398,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                   AppColors.success,
                 ),
               ),
-              const SizedBox(width: 8), // 🔥 Reduzido de 16 para 8
+              const SizedBox(width: 8),
               Expanded(
                 child: _buildResumoItemCompacto(
                   'Despesas',
@@ -421,14 +417,14 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   Widget _buildResumoItemCompacto(
       String titulo, double valor, IconData icone, Color cor) {
     return Container(
-      padding: const EdgeInsets.all(10), // 🔥 Reduzido de 16 para 10
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8), // 🔥 Reduzido de 12 para 8
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(icone, size: 14, color: cor), // 🔥 Ícone menor
+          Icon(icone, size: 14, color: cor),
           const SizedBox(width: 6),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,7 +438,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
                 formatter: Formatador.moeda,
                 style: TextStyle(
                   color: cor,
-                  fontSize: 12, // 🔥 Reduzido de 14 para 12
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -455,16 +451,15 @@ class _LancamentosScreenState extends State<LancamentosScreen>
 
   Widget _buildFiltrosIndicador() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSizes.paddingL, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
           Expanded(
             child: Text(
               _textoFiltrosAtivos,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: AppColors.textSecondary,
+                color: AppColors.textSecondary(context),
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -486,7 +481,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   Widget _buildLista() {
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
+      padding: const EdgeInsets.all(12),
       itemCount: _lancamentosFiltrados.length + (_temMaisItens ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _lancamentosFiltrados.length) {
@@ -499,7 +494,6 @@ class _LancamentosScreenState extends State<LancamentosScreen>
         }
         final item = _lancamentosFiltrados[index];
         return _LancamentoCardCompacto(
-          // 🔥 Versão compacta do card
           item: item,
           onRefresh: _carregarLancamentos,
         );
@@ -550,16 +544,13 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       icon: Icons.receipt,
       message: 'Nenhum lançamento cadastrado',
       buttonText: 'Adicionar lançamento',
-      onButtonPressed: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const NovaTransacaoScreen(),
-          ),
+      onButtonPressed: () {
+        AdicionarLancamentoModal.show(
+          context: context,
+          onSalvo: () {
+            _carregarLancamentos();
+          },
         );
-        if (result == true) {
-          await _carregarLancamentos();
-        }
       },
     );
   }
@@ -569,12 +560,14 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.filter_alt,
-              size: 48, color: AppColors.textHint), // 🔥 Ícone menor
+          const Icon(Icons.filter_alt, size: 48),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Nenhum resultado com os filtros atuais',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary(context),
+            ),
           ),
           const SizedBox(height: 12),
           GradientButton(
@@ -643,7 +636,9 @@ class _LancamentosScreenState extends State<LancamentosScreen>
         titulo,
         style: TextStyle(
           fontSize: 14,
-          color: _ordenacaoAtual == valor ? AppColors.primary : Colors.black,
+          color: _ordenacaoAtual == valor
+              ? AppColors.primary
+              : AppColors.textPrimary(context),
           fontWeight:
               _ordenacaoAtual == valor ? FontWeight.bold : FontWeight.normal,
         ),
@@ -802,19 +797,22 @@ class _LancamentosScreenState extends State<LancamentosScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[400]!),
+          color: AppColors.surface(context),
+          border: Border.all(color: AppColors.border(context)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            const Icon(Icons.calendar_today, size: 14),
+            Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 data == null ? label : DateFormat('dd/MM').format(data),
                 style: TextStyle(
                   fontSize: 12,
-                  color: data == null ? AppColors.textHint : Colors.black,
+                  color: data == null
+                      ? AppColors.textHint(context)
+                      : AppColors.textPrimary(context),
                 ),
               ),
             ),
@@ -825,7 +823,7 @@ class _LancamentosScreenState extends State<LancamentosScreen>
   }
 }
 
-// 🔥 Card de lançamento compacto
+// Card de lançamento compacto
 class _LancamentoCardCompacto extends StatelessWidget {
   final Map<String, dynamic> item;
   final VoidCallback onRefresh;
@@ -845,26 +843,36 @@ class _LancamentoCardCompacto extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
-      margin: const EdgeInsets.only(bottom: 8), // 🔥 Reduzido de 16 para 8
+      margin: const EdgeInsets.only(bottom: 8),
       child: ModernCard(
         onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => EditarTransacaoScreen(lancamento: item),
-            ),
-          );
-          if (result == true) {
-            onRefresh.call();
+          try {
+            // ✅ CORRIGIDO: nome da classe (deve ser o mesmo do import)
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditarTransacaoScreen(lancamento: item),
+              ),
+            );
+            if (result == true) {
+              onRefresh.call();
+            }
+          } catch (e) {
+            debugPrint('Erro ao navegar para editar: $e');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Erro ao abrir edição: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
         },
         child: Padding(
-          padding: const EdgeInsets.all(12), // 🔥 Reduzido de 16 para 12
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // Ícone menor
               Container(
-                width: 40, // 🔥 Reduzido de 48 para 40
+                width: 40,
                 height: 40,
                 decoration: BoxDecoration(
                   color: cor.withOpacity(0.1),
@@ -872,18 +880,17 @@ class _LancamentoCardCompacto extends StatelessWidget {
                 ),
                 child: Icon(icone, color: cor, size: 20),
               ),
-              const SizedBox(width: 12), // 🔥 Reduzido de 16 para 12
-
-              // Informações
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       item['descricao'] ?? 'Sem descrição',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14, // 🔥 Reduzido de 16 para 14
+                        fontSize: 14,
+                        color: AppColors.textPrimary(context),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -912,9 +919,9 @@ class _LancamentoCardCompacto extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           Formatador.data(DateTime.parse(item['data'])),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
-                            color: AppColors.textSecondary,
+                            color: AppColors.textSecondary(context),
                           ),
                         ),
                       ],
@@ -922,14 +929,12 @@ class _LancamentoCardCompacto extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Valor
               AnimatedCounter(
                 value: item['valor']?.toDouble() ?? 0,
                 formatter: Formatador.moeda,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14, // 🔥 Reduzido de 16 para 14
+                  fontSize: 14,
                   color: cor,
                 ),
               ),

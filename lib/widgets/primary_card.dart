@@ -1,3 +1,4 @@
+// lib/widgets/primary_card.dart
 import 'package:flutter/material.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_colors.dart';
@@ -27,11 +28,13 @@ class PrimaryCard extends StatelessWidget {
           height: height,
           padding: padding ?? const EdgeInsets.all(AppSizes.paddingL),
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: AppColors.cardBackground(context), // ✅ DINÂMICO!
             borderRadius: BorderRadius.circular(AppSizes.radiusL),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Theme.of(context).brightness == Brightness.light
+                    ? Colors.black.withOpacity(0.02)
+                    : Colors.transparent, // ✅ Sem sombra no escuro
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),

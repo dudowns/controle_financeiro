@@ -9,7 +9,8 @@ import '../constants/app_sizes.dart';
 import '../widgets/modern_card.dart';
 import '../widgets/gradient_button.dart';
 import '../utils/formatters.dart';
-import 'novo_provento_dialog.dart';
+import '../widgets/adicionar_provento_modal.dart'; // 🔥 NOVO IMPORT!
+import 'editar_provento.dart';
 
 class ProventosScreen extends StatefulWidget {
   const ProventosScreen({super.key});
@@ -23,11 +24,25 @@ class _ProventosScreenState extends State<ProventosScreen> {
   List<Map<String, dynamic>> _proventos = [];
   bool _carregando = true;
   Map<String, dynamic>? _resumo;
+  List<String> _tickersDisponiveis = []; // 🔥 Para o modal
 
   @override
   void initState() {
     super.initState();
     _carregarProventos();
+    _carregarTickers();
+  }
+
+  Future<void> _carregarTickers() async {
+    try {
+      final investimentos = await _dbHelper.getAllInvestimentos();
+      setState(() {
+        _tickersDisponiveis =
+            investimentos.map((inv) => inv['ticker'] as String).toList();
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar tickers: $e');
+    }
   }
 
   Future<void> _carregarProventos() async {
@@ -92,12 +107,25 @@ class _ProventosScreenState extends State<ProventosScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Excluir Provento'),
-        content: const Text('Deseja realmente excluir este provento?'),
+        backgroundColor: AppColors.surface(context), // ✅ DINÂMICO!
+        title: Text(
+          'Excluir Provento',
+          style:
+              TextStyle(color: AppColors.textPrimary(context)), // ✅ DINÂMICO!
+        ),
+        content: Text(
+          'Deseja realmente excluir este provento?',
+          style:
+              TextStyle(color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(
+                  color: AppColors.textSecondary(context)), // ✅ DINÂMICO!
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -139,7 +167,7 @@ class _ProventosScreenState extends State<ProventosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.background(context), // ✅ DINÂMICO!
       appBar: AppBar(
         title: const Text('Proventos'),
         backgroundColor: AppColors.primary,
@@ -152,7 +180,9 @@ class _ProventosScreenState extends State<ProventosScreen> {
         ],
       ),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : _proventos.isEmpty
               ? _buildEmptyState()
               : SingleChildScrollView(
@@ -168,14 +198,27 @@ class _ProventosScreenState extends State<ProventosScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () async {
-          final result = await showDialog(
-            context: context,
-            builder: (context) => const NovoProventoDialog(),
-          );
-          if (result == true) {
-            _carregarProventos();
+        onPressed: () {
+          if (_tickersDisponiveis.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Primeiro adicione um investimento'),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
           }
+
+          // 🔥 AGORA USA O MODAL!
+          AdicionarProventoModal.show(
+            context: context,
+            tickersDisponiveis: _tickersDisponiveis,
+            onSalvo: () {
+              _carregarProventos();
+              _carregarTickers();
+            },
+          );
         },
       ),
     );
@@ -199,12 +242,12 @@ class _ProventosScreenState extends State<ProventosScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             'Nenhum provento cadastrado',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: AppColors.textPrimary(context), // ✅ DINÂMICO!
             ),
           ),
           const SizedBox(height: 8),
@@ -212,21 +255,33 @@ class _ProventosScreenState extends State<ProventosScreen> {
             'Adicione proventos de ações, FIIs e renda fixa',
             style: TextStyle(
               fontSize: 14,
-              color: AppColors.textSecondary,
+              color: AppColors.textSecondary(context), // ✅ DINÂMICO!
             ),
           ),
           const SizedBox(height: 24),
           GradientButton(
             text: 'ADICIONAR PROVENTO',
             icon: Icons.add,
-            onPressed: () async {
-              final result = await showDialog(
-                context: context,
-                builder: (context) => const NovoProventoDialog(),
-              );
-              if (result == true) {
-                _carregarProventos();
+            onPressed: () {
+              if (_tickersDisponiveis.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Primeiro adicione um investimento'),
+                    backgroundColor: Colors.orange,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
               }
+
+              AdicionarProventoModal.show(
+                context: context,
+                tickersDisponiveis: _tickersDisponiveis,
+                onSalvo: () {
+                  _carregarProventos();
+                  _carregarTickers();
+                },
+              );
             },
           ),
         ],
@@ -248,9 +303,12 @@ class _ProventosScreenState extends State<ProventosScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Total Recebido',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -266,9 +324,12 @@ class _ProventosScreenState extends State<ProventosScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
+                  Text(
                     'Projetado',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -364,16 +425,17 @@ class _ProventosScreenState extends State<ProventosScreen> {
                   children: [
                     Text(
                       ticker,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary(context), // ✅ DINÂMICO!
                       ),
                     ),
                     Text(
                       tipo,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: AppColors.textSecondary(context), // ✅ DINÂMICO!
                       ),
                     ),
                   ],
@@ -407,15 +469,19 @@ class _ProventosScreenState extends State<ProventosScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Valor/Cota',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                    ),
                   ),
                   Text(
                     Formatador.moeda(valorPorCota),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary(context), // ✅ DINÂMICO!
                     ),
                   ),
                 ],
@@ -423,15 +489,19 @@ class _ProventosScreenState extends State<ProventosScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     'Quantidade',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                    ),
                   ),
                   Text(
                     quantidade.toStringAsFixed(0),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary(context), // ✅ DINÂMICO!
                     ),
                   ),
                 ],
@@ -439,9 +509,12 @@ class _ProventosScreenState extends State<ProventosScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
+                  Text(
                     'Total',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                    ),
                   ),
                   Text(
                     Formatador.moeda(total),
@@ -461,23 +534,36 @@ class _ProventosScreenState extends State<ProventosScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_today,
-                      size: 12, color: Colors.grey),
+                  Icon(
+                    Icons.calendar_today,
+                    size: 12,
+                    color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Pag: ${Formatador.data(dataPagamento)}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                    ),
                   ),
                 ],
               ),
               if (dataCom != null)
                 Row(
                   children: [
-                    const Icon(Icons.event, size: 12, color: Colors.grey),
+                    Icon(
+                      Icons.event,
+                      size: 12,
+                      color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Com: ${Formatador.data(dataCom)}',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary(context), // ✅ DINÂMICO!
+                      ),
                     ),
                   ],
                 ),

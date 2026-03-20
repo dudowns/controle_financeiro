@@ -10,13 +10,13 @@ class AppThemes {
     colorScheme: const ColorScheme.light(
       primary: AppColors.primary,
       secondary: AppColors.secondary,
-      surface: AppColors.surface,
-      background: AppColors.background,
+      surface: Colors.white,
+      background: Color(0xFFF8F9FA),
       error: AppColors.error,
       onPrimary: Colors.white,
       onSecondary: Colors.white,
-      onSurface: AppColors.textPrimary,
-      onBackground: AppColors.textPrimary,
+      onSurface: Color(0xFF343A40),
+      onBackground: Color(0xFF343A40),
       onError: Colors.white,
     ),
 
@@ -33,14 +33,14 @@ class AppThemes {
       ),
     ),
 
-    // Cards - CORRIGIDO: CardTheme → CardThemeData
+    // Cards
     cardTheme: CardThemeData(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: AppColors.border.withOpacity(0.5)),
+        side: BorderSide(color: Color(0xFFDEE2E6).withOpacity(0.5)),
       ),
-      color: AppColors.cardBackground,
+      color: Colors.white,
     ),
 
     // Botões elevados
@@ -86,14 +86,14 @@ class AppThemes {
     // Inputs
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.grey[50],
+      fillColor: Color(0xFFF8F9FA),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: Color(0xFFDEE2E6)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: Color(0xFFDEE2E6)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -104,8 +104,8 @@ class AppThemes {
         borderSide: const BorderSide(color: AppColors.error),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      labelStyle: const TextStyle(color: AppColors.textSecondary),
-      hintStyle: const TextStyle(color: AppColors.textHint),
+      labelStyle: const TextStyle(color: Color(0xFF6C757D)),
+      hintStyle: const TextStyle(color: Color(0xFFADB5BD)),
     ),
 
     // Textos
@@ -113,40 +113,40 @@ class AppThemes {
       displayLarge: TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       displayMedium: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       displaySmall: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       headlineMedium: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       headlineSmall: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       titleLarge: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w500,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       bodyLarge: TextStyle(
         fontSize: 16,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       bodyMedium: TextStyle(
         fontSize: 14,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       labelLarge: TextStyle(
         fontSize: 14,
@@ -155,7 +155,7 @@ class AppThemes {
       ),
       bodySmall: TextStyle(
         fontSize: 12,
-        color: AppColors.textSecondary,
+        color: Color(0xFF6C757D),
       ),
     ),
 
@@ -177,29 +177,29 @@ class AppThemes {
 
     // Divisores
     dividerTheme: DividerThemeData(
-      color: AppColors.border.withOpacity(0.5),
+      color: Color(0xFFDEE2E6).withOpacity(0.5),
       thickness: 1,
       space: 24,
     ),
 
     // Scaffold
-    scaffoldBackgroundColor: AppColors.background,
+    scaffoldBackgroundColor: const Color(0xFFF8F9FA),
 
     // Bottom navigation bar
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: Colors.white,
       selectedItemColor: AppColors.primary,
-      unselectedItemColor: AppColors.textHint,
+      unselectedItemColor: Color(0xFFADB5BD),
       type: BottomNavigationBarType.fixed,
       elevation: 0,
       selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
       unselectedLabelStyle: TextStyle(fontSize: 11),
     ),
 
-    // Tab bar - CORRIGIDO: TabBarTheme → TabBarThemeData
+    // Tab bar
     tabBarTheme: TabBarThemeData(
       labelColor: AppColors.primary,
-      unselectedLabelColor: AppColors.textSecondary,
+      unselectedLabelColor: Color(0xFF6C757D),
       indicatorColor: AppColors.primary,
       labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       unselectedLabelStyle: const TextStyle(fontSize: 14),
@@ -231,7 +231,7 @@ class AppThemes {
         if (states.contains(WidgetState.selected)) {
           return AppColors.primary;
         }
-        return AppColors.textHint;
+        return const Color(0xFFADB5BD);
       }),
     ),
 
@@ -247,7 +247,7 @@ class AppThemes {
         if (states.contains(WidgetState.selected)) {
           return AppColors.primary.withOpacity(0.5);
         }
-        return AppColors.border;
+        return const Color(0xFFDEE2E6);
       }),
     ),
 
@@ -257,11 +257,11 @@ class AppThemes {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      backgroundColor: AppColors.textPrimary,
+      backgroundColor: const Color(0xFF343A40),
       contentTextStyle: const TextStyle(color: Colors.white),
     ),
 
-    // Dialog - CORRIGIDO: DialogTheme → DialogThemeData
+    // Dialog
     dialogTheme: DialogThemeData(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -269,24 +269,24 @@ class AppThemes {
       titleTextStyle: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+        color: Color(0xFF343A40),
       ),
       contentTextStyle: const TextStyle(
         fontSize: 14,
-        color: AppColors.textSecondary,
+        color: Color(0xFF6C757D),
       ),
     ),
   );
 
-  // Tema escuro (opcional)
+  // Tema escuro
   static final ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    colorScheme: ColorScheme.dark(
+    colorScheme: const ColorScheme.dark(
       primary: AppColors.primary,
       secondary: AppColors.secondary,
-      surface: Colors.grey[900]!,
-      background: Colors.grey[950]!,
+      surface: Color(0xFF1E1E1E),
+      background: Color(0xFF121212),
       error: AppColors.error,
       onPrimary: Colors.white,
       onSecondary: Colors.white,
@@ -300,50 +300,101 @@ class AppThemes {
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
       elevation: 0,
+      centerTitle: false,
+      titleTextStyle: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
     ),
 
-    // Scaffold
-    scaffoldBackgroundColor: Colors.grey[950],
-
-    // Cards - CORRIGIDO: CardTheme → CardThemeData
+    // Cards
     cardTheme: CardThemeData(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey[800]!, width: 1),
       ),
-      color: Colors.grey[900],
+      color: const Color(0xFF1E1E1E),
     ),
+
+    // Scaffold
+    scaffoldBackgroundColor: const Color(0xFF121212),
 
     // Textos
     textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: Colors.white),
-      bodyMedium: TextStyle(color: Colors.white70),
-      bodySmall: TextStyle(color: Colors.white60),
+      displayLarge: TextStyle(
+          fontSize: 28, fontWeight: FontWeight.w600, color: Colors.white),
+      displayMedium: TextStyle(
+          fontSize: 24, fontWeight: FontWeight.w600, color: Colors.white),
+      displaySmall: TextStyle(
+          fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+      headlineMedium: TextStyle(
+          fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
+      headlineSmall: TextStyle(
+          fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+      titleLarge: TextStyle(
+          fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
+      bodyLarge: TextStyle(fontSize: 16, color: Colors.white),
+      bodyMedium: TextStyle(fontSize: 14, color: Colors.white),
+      labelLarge: TextStyle(
+          fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary),
+      bodySmall: TextStyle(fontSize: 12, color: Colors.white70),
     ),
 
-    // FAB para tema escuro
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: AppColors.primary,
-      foregroundColor: Colors.white,
-      elevation: 0,
-      shape: CircleBorder(),
-    ),
-
-    // Bottom navigation bar para tema escuro
+    // Bottom navigation bar
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: const Color(0xFF1E1E1E),
       selectedItemColor: AppColors.primary,
       unselectedItemColor: Colors.grey[500],
       type: BottomNavigationBarType.fixed,
       elevation: 0,
+      selectedLabelStyle:
+          const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      unselectedLabelStyle: const TextStyle(fontSize: 11),
     ),
 
-    // Dialog para tema escuro - CORRIGIDO
+    // Inputs
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: const Color(0xFF2A2A2A),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[700]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[700]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      labelStyle: const TextStyle(color: Colors.white70),
+      hintStyle: const TextStyle(color: Colors.white38),
+    ),
+
+    // Tab bar
+    tabBarTheme: TabBarThemeData(
+      labelColor: AppColors.primary,
+      unselectedLabelColor: Colors.white70,
+      indicatorColor: AppColors.primary,
+      labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      unselectedLabelStyle: const TextStyle(fontSize: 14),
+      indicatorSize: TabBarIndicatorSize.tab,
+    ),
+
+    // Dialog
     dialogTheme: DialogThemeData(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      backgroundColor: Colors.grey[900],
+      backgroundColor: const Color(0xFF1E1E1E),
       titleTextStyle: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
@@ -353,6 +404,21 @@ class AppThemes {
         fontSize: 14,
         color: Colors.white70,
       ),
+    ),
+
+    // FAB
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      shape: CircleBorder(),
+    ),
+
+    // Divisores
+    dividerTheme: DividerThemeData(
+      color: Colors.grey[800]!,
+      thickness: 1,
+      space: 24,
     ),
   );
 }

@@ -363,11 +363,21 @@ class DashboardScreenState extends State<DashboardScreen>
               children: [
                 Text(
                   'Último backup',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).brightness == Brightness.light
+                        ? Colors.grey[600]
+                        : Colors.white70,
+                  ),
                 ),
                 Text(
                   DateFormat('dd/MM/yyyy').format(dataBackup),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).brightness == Brightness.light
+                        ? Colors.black87
+                        : Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -405,7 +415,7 @@ class DashboardScreenState extends State<DashboardScreen>
     super.build(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.background(context),
       body: SafeArea(
         child: _buildBody(),
       ),
@@ -435,7 +445,10 @@ class DashboardScreenState extends State<DashboardScreen>
             const SizedBox(height: AppSizes.paddingL),
             Text(
               _erro!,
-              style: const TextStyle(fontSize: 16),
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textPrimary(context),
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSizes.paddingL),
@@ -524,20 +537,24 @@ class DashboardScreenState extends State<DashboardScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
+          Text(
             "Dashboard",
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary(context),
             ),
           ),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface(context),
               borderRadius: BorderRadius.circular(AppSizes.radiusM),
-              boxShadow: const [
+              border: Border.all(color: AppColors.border(context)),
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black12,
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.black12
+                      : Colors.transparent,
                   blurRadius: 5,
                 ),
               ],
@@ -551,7 +568,10 @@ class DashboardScreenState extends State<DashboardScreen>
                 ),
                 Text(
                   Formatador.mesAno(_mesSelecionado),
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary(context),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
@@ -664,7 +684,10 @@ class DashboardScreenState extends State<DashboardScreen>
               const SizedBox(width: AppSizes.paddingXS),
               Text(
                 titulo,
-                style: const TextStyle(fontSize: 12),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary(context),
+                ),
               ),
             ],
           ),
@@ -717,10 +740,12 @@ class DashboardScreenState extends State<DashboardScreen>
         alignment: Alignment.center,
         children: [
           if (!temDados)
-            const Center(
+            Center(
               child: Text(
                 'Sem dados',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: AppColors.textSecondary(context),
+                ),
               ),
             )
           else
@@ -761,14 +786,17 @@ class DashboardScreenState extends State<DashboardScreen>
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 "Total",
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary(context),
+                ),
               ),
               AnimatedCounter(
                 value: _dados?.totalMovimentado ?? 0,
                 formatter: Formatador.moeda,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary,
@@ -801,13 +829,15 @@ class DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildGraficoCategorias() {
     if (_dados == null || !_dados!.temGastos) {
-      return const ModernCard(
+      return ModernCard(
         height: 250,
         child: Center(
           child: Text(
             'Nenhum gasto\nno período',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(
+              color: AppColors.textSecondary(context),
+            ),
           ),
         ),
       );
@@ -861,9 +891,12 @@ class DashboardScreenState extends State<DashboardScreen>
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 "Gastos",
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary(context),
+                ),
               ),
               AnimatedCounter(
                 value: _dados!.despesas,
@@ -891,11 +924,12 @@ class DashboardScreenState extends State<DashboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '📊 Estatísticas do período',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: AppSizes.paddingL),
@@ -903,7 +937,10 @@ class DashboardScreenState extends State<DashboardScreen>
             'Média de gastos por dia',
             _dados!.despesas / diasNoMes,
           ),
-          const Divider(height: AppSizes.paddingXL),
+          Divider(
+            height: AppSizes.paddingXL,
+            color: AppColors.divider(context),
+          ),
           _buildEstatisticaItem(
             'Maior gasto (categoria)',
             _dados!.gastosPorCategoria.isNotEmpty
@@ -913,13 +950,19 @@ class DashboardScreenState extends State<DashboardScreen>
                 ? _dados!.gastosPorCategoria.entries.first.key
                 : null,
           ),
-          const Divider(height: AppSizes.paddingXL),
+          Divider(
+            height: AppSizes.paddingXL,
+            color: AppColors.divider(context),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Taxa de economia',
-                style: TextStyle(fontSize: 14),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary(context),
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -958,7 +1001,10 @@ class DashboardScreenState extends State<DashboardScreen>
           Expanded(
             child: Text(
               titulo,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary(context),
+              ),
             ),
           ),
           if (label != null)
@@ -983,8 +1029,9 @@ class DashboardScreenState extends State<DashboardScreen>
           AnimatedCounter(
             value: valor,
             formatter: Formatador.moeda,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary(context),
             ),
           ),
         ],

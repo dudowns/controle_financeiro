@@ -15,7 +15,6 @@ import 'grafico_ativo.dart';
 import 'proventos_screen.dart';
 import 'lancamentos_investimentos_screen.dart';
 import 'editar_investimento.dart';
-import 'adicionar_investimento.dart';
 import 'novo_investimento_dialog.dart';
 import '../models/renda_fixa_model.dart';
 import '../constants/app_colors.dart';
@@ -28,6 +27,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/skeleton_loader.dart';
 import '../utils/formatters.dart';
 import '../widgets/grafico_evolucao.dart';
+import '../widgets/adicionar_investimento_modal.dart'; // 🔥 NOVO IMPORT!
 
 class InvestimentosTabsScreen extends StatefulWidget {
   const InvestimentosTabsScreen({super.key});
@@ -139,16 +139,13 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     });
   }
 
-  // 🟢 GERAR DADOS REAIS PARA O GRÁFICO DE EVOLUÇÃO
   void _gerarDadosEvolucao() {
     dadosEvolucao.clear();
 
-    // Mapa para agrupar valores por mês
     Map<String, Map<String, double>> valoresPorMes = {};
 
     debugPrint('🔍 Processando investimentos para o gráfico...');
 
-    // 1. Processar investimentos (ações, FIIs, etc)
     for (var inv in investimentos) {
       final dataCompra = inv.dataCompra;
 
@@ -175,7 +172,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           '   📌 ${inv.ticker}: Compra em ${dataCompra.month}/${dataCompra.year} - R\$ ${valorInvestidoMes.toStringAsFixed(2)}');
     }
 
-    // 2. Processar renda fixa
     for (var rf in rendaFixa) {
       final dataAplicacao = DateTime.parse(rf['data_aplicacao'] as String);
       final chaveMes =
@@ -201,7 +197,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           '   📌 Renda Fixa: Aplicação em ${dataAplicacao.month}/${dataAplicacao.year} - R\$ ${valorInvestidoMes.toStringAsFixed(2)}');
     }
 
-    // 3. Ordenar por data
     final mesesOrdenados = valoresPorMes.keys.toList()..sort();
 
     double patrimonioAcumulado = 0;
@@ -213,7 +208,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
       final ano = int.parse(mes.split('-')[0]);
       final mesNum = int.parse(mes.split('-')[1]);
 
-      // SÓ ADICIONA SE FOR JANEIRO DE 2026 EM DIANTE
       if (ano > 2026 || (ano == 2026 && mesNum >= 1)) {
         final valores = valoresPorMes[mes]!;
 
@@ -271,7 +265,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           (valorPorTipo['RENDA_FIXA'] ?? 0) + valorFinal;
     }
 
-    // Calcular top ativos
     final Map<String, double> valorPorAtivo = {};
     for (var inv in investimentosConsolidados) {
       valorPorAtivo[inv.ticker] =
@@ -282,7 +275,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
       ..sort((a, b) => b.value.compareTo(a.value));
     topAtivos = ativosOrdenados.take(5).toList();
 
-    // Processar proventos
     for (var p in proventos) {
       dividendosRecebidos += p.totalRecebido;
 
@@ -306,7 +298,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     ganhoCapital = patrimonioTotal - valorInvestido;
   }
 
-  // ========== GRÁFICO DE PIZZA ==========
   Widget _buildGraficoPizza() {
     if (valorPorTipo.isEmpty) {
       return Container(
@@ -365,7 +356,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ========== TOP 5 ATIVOS ==========
   Widget _buildTopAtivos() {
     if (topAtivos.isEmpty) {
       return const SizedBox.shrink();
@@ -462,14 +452,9 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ========== CARD DE INVESTIMENTO POR MÊS (CORRIGIDO - SEM VARIÁVEL NÃO USADA) ==========
   Widget _buildInvestimentoPorMes() {
-    // Agrupar investimentos por mês (últimos 6 meses)
     final Map<String, double> investidoPorMes = {};
 
-    // ✅ LINHA REMOVIDA: final agora = DateTime.now(); (não era usada)
-
-    // Processar investimentos
     for (var inv in investimentos) {
       final dataCompra = inv.dataCompra;
       final chaveMes =
@@ -480,7 +465,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           (investidoPorMes[chaveMes] ?? 0) + valorInvestido;
     }
 
-    // Processar renda fixa
     for (var rf in rendaFixa) {
       final dataAplicacao = DateTime.parse(rf['data_aplicacao'] as String);
       final chaveMes =
@@ -491,33 +475,30 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           (investidoPorMes[chaveMes] ?? 0) + valorInvestido;
     }
 
-    // Ordenar meses (do mais recente para o mais antigo)
     final mesesOrdenados = investidoPorMes.keys.toList()
       ..sort((a, b) {
         final aParts = a.split('/');
         final bParts = b.split('/');
         final aDate = DateTime(int.parse(aParts[1]), int.parse(aParts[0]));
         final bDate = DateTime(int.parse(bParts[1]), int.parse(bParts[0]));
-        return bDate.compareTo(aDate); // Mais recente primeiro
+        return bDate.compareTo(aDate);
       });
 
-    // Pegar últimos 6 meses
     final ultimosMeses = mesesOrdenados.take(6).toList();
 
     if (ultimosMeses.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    // Encontrar o maior valor para a barra de progresso
     final maiorValor = investidoPorMes.values.reduce((a, b) => a > b ? a : b);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.cardBackground(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -534,11 +515,12 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                     Icon(Icons.trending_up, color: AppColors.primary, size: 16),
               ),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Investimento por Mês',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary(context),
                 ),
               ),
             ],
@@ -577,7 +559,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                         Container(
                           height: 8,
                           decoration: BoxDecoration(
-                            color: Colors.grey[200],
+                            color: AppColors.border(context),
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -599,9 +581,10 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                   const SizedBox(width: 10),
                   Text(
                     Formatador.moedaCompacta(valor),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
+                      color: AppColors.textPrimary(context),
                     ),
                   ),
                 ],
@@ -612,15 +595,17 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: AppColors.surface(context),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border(context)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Total últimos 6 meses:',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                  style: TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary(context)),
                 ),
                 Text(
                   Formatador.moedaCompacta(
@@ -641,7 +626,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ========== GRÁFICO DE EVOLUÇÃO ==========
   Widget _buildGraficoEvolucao() {
     if (dadosEvolucao.isEmpty) {
       return Container(
@@ -670,22 +654,21 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ========== CARD DE RESUMO COMPACTO ==========
   Widget _buildResumoCompacto() {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.cardBackground(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildInfoColuna('Aplicado', valorInvestido, Colors.blue),
-          Container(height: 30, width: 1, color: Colors.grey[300]),
+          Container(height: 30, width: 1, color: AppColors.border(context)),
           _buildInfoColuna('Dividendos', dividendosRecebidos, Colors.green),
-          Container(height: 30, width: 1, color: Colors.grey[300]),
+          Container(height: 30, width: 1, color: AppColors.border(context)),
           _buildInfoColuna('Ganho', ganhoCapital,
               ganhoCapital >= 0 ? Colors.green : Colors.red),
         ],
@@ -701,7 +684,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
           label,
           style: TextStyle(
             fontSize: 11,
-            color: Colors.grey[600],
+            color: AppColors.textSecondary(context),
           ),
         ),
         const SizedBox(height: 4),
@@ -718,7 +701,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ========== PAINEL PRINCIPAL ==========
   Widget _buildPainelTab() {
     final rentabilidade = valorInvestido > 0
         ? ((patrimonioTotal - valorInvestido) / valorInvestido) * 100
@@ -728,7 +710,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
       padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          // Card principal
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -814,20 +795,11 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               ],
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // Card de resumo compacto
           _buildResumoCompacto(),
-
           const SizedBox(height: 12),
-
-          // CARD DE INVESTIMENTO POR MÊS
           _buildInvestimentoPorMes(),
-
           const SizedBox(height: 12),
-
-          // Gráfico de pizza e top ativos lado a lado
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -836,18 +808,19 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.cardBackground(context),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey[200]!),
+                    border: Border.all(color: AppColors.border(context)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         '🥧 Distribuição',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary(context),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -866,25 +839,23 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
-          // GRÁFICO DE EVOLUÇÃO
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.cardBackground(context),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey[200]!),
+              border: Border.all(color: AppColors.border(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '📊 Evolução Patrimonial',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -897,7 +868,6 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
-  // ========== BOTÃO FLUTUANTE ==========
   void _mostrarMenuCompraVenda() {
     showModalBottomSheet(
       context: context,
@@ -933,7 +903,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
                     style: TextStyle(fontSize: 12)),
                 onTap: () {
                   Navigator.pop(context);
-                  _abrirDialogAdicionar();
+                  _abrirDialogAdicionar(); // Agora usa o MODAL!
                 },
               ),
               const Divider(height: 1),
@@ -992,14 +962,14 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     );
   }
 
+  // 🟢 AGORA USA O MODAL!
   Future<void> _abrirDialogAdicionar() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AdicionarInvestimentoScreen(),
-      ),
+    await AdicionarInvestimentoModal.show(
+      context: context,
+      onSalvo: (investimento) {
+        carregarDados();
+      },
     );
-    if (result == true) carregarDados();
   }
 
   void _abrirDialogRendaFixa() {
@@ -1094,7 +1064,7 @@ class _InvestimentosTabsScreenState extends State<InvestimentosTabsScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
         toolbarHeight: 50,
         title: const Text(

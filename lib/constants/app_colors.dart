@@ -2,30 +2,82 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // ========== CORES PRINCIPAIS ==========
+  // ========== CORES PRINCIPAIS (NÃO MUDAM) ==========
   static const Color primary = Color(0xFF7B2CBF);
   static const Color primaryLight = Color(0xFFB084D9);
   static const Color primaryDark = Color(0xFF5A1E8A);
   static const Color secondary = Color(0xFFB084D9);
 
-  // ========== CORES DE FUNDO ==========
-  static const Color background = Color(0xFFF8F9FA);
-  static const Color surface = Colors.white;
-  static const Color cardBackground = Colors.white;
-  static const Color muted = Color(0xFFCED4DA);
+  // ========== CORES DE FUNDO (DINÂMICAS) ==========
+  static Color background(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFF8F9FA) // Claro
+        : const Color(0xFF121212); // Escuro
+  }
 
-  // ========== TEXTOS ==========
-  static const Color textPrimary = Color(0xFF343A40);
-  static const Color textSecondary = Color(0xFF6C757D);
-  static const Color textHint = Color(0xFFADB5BD);
-  static const Color textDisabled = Color(0xFFCED4DA);
+  static Color surface(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? Colors.white
+        : const Color(0xFF1E1E1E);
+  }
 
-  // ========== BORDAS ==========
-  static const Color border = Color(0xFFDEE2E6);
-  static const Color borderDark = Color(0xFFCED4DA);
-  static const Color divider = Color(0xFFE9ECEF);
+  static Color cardBackground(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? Colors.white
+        : const Color(0xFF1E1E1E);
+  }
 
-  // ========== STATUS ==========
+  static Color muted(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFCED4DA)
+        : Colors.grey[700]!;
+  }
+
+  // ========== TEXTOS (DINÂMICOS) ==========
+  static Color textPrimary(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFF343A40) // Quase preto
+        : Colors.white; // Branco
+  }
+
+  static Color textSecondary(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFF6C757D) // Cinza médio
+        : Colors.white70; // Branco com 70%
+  }
+
+  static Color textHint(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFADB5BD) // Cinza claro
+        : Colors.white38; // Branco com 38%
+  }
+
+  static Color textDisabled(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFCED4DA) // Cinza muito claro
+        : Colors.white24; // Branco com 24%
+  }
+
+  // ========== BORDAS (DINÂMICAS) ==========
+  static Color border(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFDEE2E6) // Cinza claro
+        : Colors.grey[800]!; // Cinza escuro
+  }
+
+  static Color borderDark(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFCED4DA) // Cinza médio
+        : Colors.grey[700]!; // Cinza mais escuro
+  }
+
+  static Color divider(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFE9ECEF) // Quase branco
+        : Colors.grey[900]!; // Quase preto
+  }
+
+  // ========== STATUS (NÃO MUDAM) ==========
   static const Color success = Color(0xFF2E7D32);
   static const Color successLight = Color(0xFFE8F5E9);
   static const Color error = Color(0xFFC62828);
@@ -35,7 +87,7 @@ class AppColors {
   static const Color info = Color(0xFF1976D2);
   static const Color infoLight = Color(0xFFE3F2FD);
 
-  // ========== CATEGORIAS (ATUALIZADO) ==========
+  // ========== CATEGORIAS (NÃO MUDAM) ==========
   static const Map<String, Color> categoryColors = {
     // ===== RECEITAS =====
     'Salário': Color(0xFF2E7D32),
@@ -71,7 +123,7 @@ class AppColors {
     'Outros': Color(0xFF9E9E9E),
   };
 
-  // ========== GRADIENTS ==========
+  // ========== GRADIENTS (NÃO MUDAM) ==========
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primary, secondary],
     begin: Alignment.topLeft,
@@ -81,5 +133,12 @@ class AppColors {
   // ========== MÉTODOS ÚTEIS ==========
   static Color getCategoryColor(String category) {
     return categoryColors[category] ?? categoryColors['Outros']!;
+  }
+
+  // ========== MÉTODO PARA PEGAR COR DE FUNDO DOS CARDS ==========
+  static Color getCardColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light
+        ? Colors.white
+        : const Color(0xFF1E1E1E);
   }
 }
