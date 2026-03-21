@@ -50,6 +50,11 @@ class _AdicionarContaModalState extends State<AdicionarContaModal> {
 
   final List<int> _dias = List.generate(31, (i) => i + 1);
 
+  // 🔥 CATEGORIAS PARA CONTAS DO MÊS - USA O PADRÃO DO AppCategories!
+  List<String> get _categoriasDisponiveis {
+    return AppCategories.contas; // ✅ CORRETO!
+  }
+
   @override
   void dispose() {
     _nomeController.dispose();
@@ -71,7 +76,7 @@ class _AdicionarContaModalState extends State<AdicionarContaModal> {
     }
   }
 
-  // 🔥 FUNÇÃO PARA VERIFICAR SE JÁ EXISTE CONTA DUPLICADA
+  // VERIFICAR DUPLICATA
   Future<bool> _verificarDuplicata(String nome, String tipo) async {
     try {
       final db = await _dbHelper.database;
@@ -93,7 +98,7 @@ class _AdicionarContaModalState extends State<AdicionarContaModal> {
     setState(() => _carregando = true);
 
     try {
-      // 🔥 VERIFICAR SE JÁ EXISTE CONTA COM MESMO NOME E TIPO
+      // Verificar duplicata
       final existe =
           await _verificarDuplicata(_nomeController.text, _tipoSelecionado);
 
@@ -388,7 +393,7 @@ class _AdicionarContaModalState extends State<AdicionarContaModal> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Categoria
+                  // 🟢 CATEGORIA - USANDO O PADRÃO CORRETO!
                   Text(
                     'Categoria',
                     style: TextStyle(
@@ -410,7 +415,7 @@ class _AdicionarContaModalState extends State<AdicionarContaModal> {
                       isExpanded: true,
                       underline: const SizedBox(),
                       style: TextStyle(color: AppColors.textPrimary(context)),
-                      items: AppCategories.contas.map((categoria) {
+                      items: _categoriasDisponiveis.map((categoria) {
                         return DropdownMenuItem(
                           value: categoria,
                           child: Row(
@@ -424,7 +429,12 @@ class _AdicionarContaModalState extends State<AdicionarContaModal> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(categoria),
+                              Text(
+                                categoria,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary(context),
+                                ),
+                              ),
                             ],
                           ),
                         );
