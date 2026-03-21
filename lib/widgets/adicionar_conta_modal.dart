@@ -71,12 +71,39 @@ class _AdicionarContaModalState extends State<AdicionarContaModal> {
     }
   }
 
+  // 🔥 FUNÇÃO PARA VERIFICAR SE JÁ EXISTE CONTA DUPLICADA
+  Future<bool> _verificarDuplicata(String nome, String tipo) async {
+    try {
+      final db = await _dbHelper.database;
+      final result = await db.query(
+        'contas',
+        where: 'nome = ? AND tipo = ?',
+        whereArgs: [nome, tipo],
+      );
+      return result.isNotEmpty;
+    } catch (e) {
+      debugPrint('Erro ao verificar duplicata: $e');
+      return false;
+    }
+  }
+
   Future<void> _salvarConta() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _carregando = true);
 
     try {
+      // 🔥 VERIFICAR SE JÁ EXISTE CONTA COM MESMO NOME E TIPO
+      final existe =
+          await _verificarDuplicata(_nomeController.text, _tipoSelecionado);
+
+      if (existe) {
+        _mostrarErro(
+            'Já existe uma conta com o nome "${_nomeController.text}" e tipo "$_tipoSelecionado"!\n\nUse um nome diferente.');
+        setState(() => _carregando = false);
+        return;
+      }
+
       final Map<String, dynamic> conta = {
         'nome': _nomeController.text,
         'valor': double.parse(_valorController.text.replaceAll(',', '.')),
