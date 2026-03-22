@@ -1,7 +1,6 @@
 // lib/widgets/adicionar_deposito_modal.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../repositories/meta_repository.dart';
+import '../database/db_helper.dart';
 import '../constants/app_colors.dart';
 import '../utils/formatters.dart';
 import '../widgets/gradient_button.dart';
@@ -52,7 +51,7 @@ class AdicionarDepositoModal extends StatefulWidget {
 }
 
 class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
-  final MetaRepository _metaRepo = MetaRepository();
+  final DBHelper _dbHelper = DBHelper();
   final TextEditingController _valorController = TextEditingController();
   final TextEditingController _observacaoController = TextEditingController();
   bool _carregando = false;
@@ -66,9 +65,15 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
 
   double _parseValor(String texto) {
     try {
-      return double.parse(texto.replaceAll(',', '.'));
+      // Remove "R$" e espaços
+      String cleaned = texto.replaceAll('R\$', '').trim();
+      // Substitui vírgula por ponto
+      cleaned = cleaned.replaceAll(',', '.');
+      // Remove tudo que não é número ou ponto
+      cleaned = cleaned.replaceAll(RegExp(r'[^0-9.]'), '');
+      return double.parse(cleaned);
     } catch (e) {
-      return 0;
+      return 0.0;
     }
   }
 
@@ -78,30 +83,44 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
       return;
     }
 
-    final valor = _parseValor(_valorController.text);
+    final double valor = _parseValor(_valorController.text);
     if (valor <= 0) {
       _mostrarErro('O valor deve ser maior que zero');
       return;
     }
 
-    final novoTotal = widget.valorAtual + valor;
-    if (novoTotal > widget.valorObjetivo) {
-      _mostrarErro(
-          'O valor ultrapassa a meta (Máx: ${Formatador.moeda(widget.valorObjetivo - widget.valorAtual)})');
+    final double valorAtual = widget.valorAtual;
+    final double valorObjetivo = widget.valorObjetivo;
+    final double novoTotal = valorAtual + valor;
+    final double valorRestante =
+        (valorObjetivo - valorAtual).clamp(0.0, valorObjetivo);
+
+    // ✅ Comparação correta entre doubles
+    if (valor > valorRestante) {
+      // ✅ Formatação correta do valorRestante
+      final String valorRestanteFormatado = Formatador.moeda(valorRestante);
+      _mostrarErro('O valor ultrapassa a meta (Máx: $valorRestanteFormatado)');
       return;
     }
 
     setState(() => _carregando = true);
 
     try {
-      await _metaRepo.insertDepositoMeta({
+      // Inserir depósito
+      await _dbHelper.insertDepositoMeta({
         'meta_id': widget.metaId,
         'valor': valor,
         'data_deposito': DateTime.now().toIso8601String(),
         'observacao': _observacaoController.text,
       });
 
-      final atingiu = (novoTotal >= widget.valorObjetivo);
+      // Atualizar valor atual da meta
+      await _dbHelper.atualizarProgressoMeta(widget.metaId, novoTotal);
+
+      // Verificar se atingiu a meta
+      if (novoTotal >= valorObjetivo) {
+        await _dbHelper.concluirMeta(widget.metaId);
+      }
 
       if (mounted) {
         if (widget.onDepositoAdicionado != null) {
@@ -109,12 +128,13 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
         }
         Navigator.pop(context);
 
+        final bool atingiu = (novoTotal >= valorObjetivo);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(atingiu
                 ? '🎉 Parabéns! Meta alcançada!'
                 : '✅ Depósito adicionado!'),
-            backgroundColor: atingiu ? Colors.green : AppColors.success,
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -130,7 +150,7 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensagem),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -138,14 +158,14 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CORRIGIDO: .toDouble() para converter num para double
-    final double valorRestante = (widget.valorObjetivo - widget.valorAtual)
-        .clamp(0, widget.valorObjetivo)
-        .toDouble();
+    final double valorAtual = widget.valorAtual;
+    final double valorObjetivo = widget.valorObjetivo;
+    final double valorRestante =
+        (valorObjetivo - valorAtual).clamp(0.0, valorObjetivo);
 
     return Column(
       children: [
-        // 🔝 CABEÇALHO
+        // CABEÇALHO
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -171,7 +191,7 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
           ),
         ),
 
-        // 📝 FORMULÁRIO
+        // FORMULÁRIO
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -199,7 +219,7 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
                             ),
                           ),
                           Text(
-                            Formatador.moeda(widget.valorAtual),
+                            Formatador.moeda(valorAtual),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary(context),
@@ -218,8 +238,7 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
                             ),
                           ),
                           Text(
-                            Formatador.moeda(
-                                valorRestante), // ✅ AGORA É DOUBLE!
+                            Formatador.moeda(valorRestante),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppColors.primary,
@@ -258,6 +277,14 @@ class _AdicionarDepositoModalState extends State<AdicionarDepositoModal> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: AppColors.border(context)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.border(context)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary),
                     ),
                   ),
                 ),

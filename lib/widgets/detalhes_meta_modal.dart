@@ -1,13 +1,11 @@
 // lib/widgets/detalhes_meta_modal.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
-import '../repositories/meta_repository.dart';
-import 'adicionar_deposito_modal.dart';
 import '../constants/app_colors.dart';
-import '../constants/app_sizes.dart';
 import '../utils/formatters.dart';
 import '../widgets/gradient_button.dart';
+import 'adicionar_deposito_modal.dart';
+import 'editar_meta_modal.dart';
 
 class DetalhesMetaModal extends StatefulWidget {
   final Map<String, dynamic> meta;
@@ -47,7 +45,7 @@ class DetalhesMetaModal extends StatefulWidget {
 }
 
 class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
-  final MetaRepository _metaRepo = MetaRepository();
+  final DBHelper _dbHelper = DBHelper();
 
   List<Map<String, dynamic>> depositos = [];
   late Map<String, dynamic> metaAtual;
@@ -65,9 +63,9 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
     setState(() => carregando = true);
 
     try {
-      depositos = await _metaRepo.getDepositosByMetaId(metaAtual['id']);
+      depositos = await _dbHelper.getDepositosByMetaId(metaAtual['id']);
 
-      final metaAtualizada = await _metaRepo.getMetaById(metaAtual['id']);
+      final metaAtualizada = await _dbHelper.getMetaById(metaAtual['id']);
       if (metaAtualizada != null && mounted) {
         setState(() {
           metaAtual = metaAtualizada;
@@ -79,7 +77,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao carregar depósitos: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -138,10 +136,10 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: AppColors.error.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.delete, color: Colors.red),
+              child: Icon(Icons.delete, color: AppColors.error),
             ),
             const SizedBox(width: 12),
             Text(
@@ -168,7 +166,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
             child: const Text('EXCLUIR'),
@@ -182,9 +180,18 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
       setState(() => carregando = true);
 
       try {
-        final sucesso = await _metaRepo.removerDepositoEAtualizarMeta(id);
+        await _dbHelper.deleteDeposito(id);
 
-        if (sucesso && mounted) {
+        final depositosAtuais =
+            await _dbHelper.getDepositosByMetaId(metaAtual['id']);
+        double novoValor = 0;
+        for (var d in depositosAtuais) {
+          novoValor += (d['valor'] ?? 0).toDouble();
+        }
+
+        await _dbHelper.atualizarProgressoMeta(metaAtual['id'], novoValor);
+
+        if (mounted) {
           await _carregarDepositos();
           if (widget.onMetaAlterada != null) {
             await widget.onMetaAlterada!();
@@ -192,19 +199,17 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('✅ Depósito excluído!'),
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
             ),
           );
-        } else {
-          throw Exception('Falha ao excluir depósito');
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Erro ao excluir: $e'),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
             ),
           );
         }
@@ -217,11 +222,15 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
   }
 
   Future<void> _editarMeta() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Funcionalidade em desenvolvimento'),
-        backgroundColor: Colors.orange,
-      ),
+    await EditarMetaModal.show(
+      context: context,
+      meta: metaAtual,
+      onSalvo: () async {
+        await _carregarDepositos();
+        if (widget.onMetaAlterada != null) {
+          await widget.onMetaAlterada!();
+        }
+      },
     );
   }
 
@@ -235,10 +244,10 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: AppColors.error.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.delete, color: Colors.red),
+              child: Icon(Icons.delete, color: AppColors.error),
             ),
             const SizedBox(width: 12),
             Text(
@@ -251,7 +260,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
           ],
         ),
         content: Text(
-          'Deseja realmente excluir a meta "${metaAtual['titulo']}"?',
+          'Deseja realmente excluir a meta "${metaAtual['titulo']}"?\n\nTodos os depósitos também serão excluídos.',
           style: TextStyle(color: AppColors.textSecondary(context)),
         ),
         actions: [
@@ -265,7 +274,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
             child: const Text('EXCLUIR'),
@@ -276,16 +285,16 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
 
     if (confirmar == true && mounted) {
       try {
-        await _metaRepo.deleteMeta(metaAtual['id']);
+        await _dbHelper.deleteMeta(metaAtual['id']);
         if (mounted) {
           if (widget.onMetaAlterada != null) {
             await widget.onMetaAlterada!();
           }
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('🗑️ Meta excluída!'),
-              backgroundColor: Colors.orange,
+            SnackBar(
+              content: const Text('🗑️ Meta excluída!'),
+              backgroundColor: AppColors.warning,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -295,7 +304,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Erro ao excluir: $e'),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
             ),
           );
         }
@@ -332,7 +341,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
         ? const Center(child: CircularProgressIndicator())
         : Column(
             children: [
-              // 🔝 CABEÇALHO
+              // CABEÇALHO
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -350,7 +359,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                     Expanded(
                       child: Text(
                         metaAtual['titulo'] ?? 'Detalhes da Meta',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -387,7 +396,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                 ),
               ),
 
-              // 📝 CONTEÚDO
+              // CONTEÚDO
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
@@ -400,6 +409,13 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                           color: AppColors.surface(context),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: AppColors.border(context)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,18 +464,18 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
+                                      color: AppColors.success.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
-                                    child: const Row(
+                                    child: Row(
                                       children: [
                                         Icon(Icons.check_circle,
-                                            color: Colors.green, size: 16),
-                                        SizedBox(width: 4),
+                                            color: AppColors.success, size: 16),
+                                        const SizedBox(width: 4),
                                         Text(
                                           'Concluída',
                                           style: TextStyle(
-                                            color: Colors.green,
+                                            color: AppColors.success,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -489,8 +505,9 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                                   style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color:
-                                        percentual >= 100 ? Colors.green : cor,
+                                    color: percentual >= 100
+                                        ? AppColors.success
+                                        : cor,
                                   ),
                                 ),
                               ],
@@ -500,8 +517,9 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                               borderRadius: BorderRadius.circular(8),
                               child: LinearProgressIndicator(
                                 value: progresso.clamp(0.0, 1.0),
-                                backgroundColor: Colors.grey[200],
-                                color: percentual >= 100 ? Colors.green : cor,
+                                backgroundColor: AppColors.muted(context),
+                                color:
+                                    percentual >= 100 ? AppColors.success : cor,
                                 minHeight: 12,
                               ),
                             ),
@@ -642,20 +660,20 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
 
                       const SizedBox(height: 20),
 
-                      // ✅ BOTÃO CORRIGIDO - NUNCA PASSA NULL PARA GRADIENTBUTTON!
+                      // Botão Adicionar Depósito
                       if (concluida)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            color: AppColors.muted(context),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text(
                               'META CONCLUÍDA',
                               style: TextStyle(
-                                color: Colors.grey,
+                                color: AppColors.textSecondary(context),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -666,7 +684,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                           width: double.infinity,
                           child: GradientButton(
                             text: 'ADICIONAR DEPÓSITO',
-                            onPressed: () => _adicionarDeposito(),
+                            onPressed: _adicionarDeposito,
                           ),
                         ),
 
@@ -754,7 +772,7 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                                     background: Container(
                                       alignment: Alignment.centerRight,
                                       padding: const EdgeInsets.only(right: 20),
-                                      color: Colors.red,
+                                      color: AppColors.error,
                                       child: const Icon(Icons.delete,
                                           color: Colors.white),
                                     ),
@@ -790,7 +808,8 @@ class _DetalhesMetaModalState extends State<DetalhesMetaModal> {
                                               onPressed: () =>
                                                   Navigator.pop(context, true),
                                               style: TextButton.styleFrom(
-                                                foregroundColor: Colors.red,
+                                                foregroundColor:
+                                                    AppColors.error,
                                               ),
                                               child: const Text('Excluir'),
                                             ),

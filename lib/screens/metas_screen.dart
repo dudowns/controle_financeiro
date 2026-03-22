@@ -2,13 +2,9 @@
 import 'package:flutter/material.dart';
 import '../database/db_helper.dart';
 import '../constants/app_colors.dart';
-import '../constants/app_sizes.dart';
-import '../widgets/modern_card.dart';
-import '../widgets/animated_counter.dart';
-import '../widgets/gradient_button.dart';
 import '../utils/formatters.dart';
-import '../widgets/nova_meta_modal.dart'; // 🔥 NOVO IMPORT!
-import 'detalhes_meta_screen.dart';
+import '../widgets/nova_meta_modal.dart';
+import '../widgets/detalhes_meta_modal.dart';
 
 class MetasScreen extends StatefulWidget {
   const MetasScreen({super.key});
@@ -94,19 +90,25 @@ class _MetasScreenState extends State<MetasScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: const Text(''),
+        title: const Text('Minhas Metas'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _carregarMetas,
+            tooltip: 'Atualizar',
           ),
         ],
       ),
       body: _carregando
           ? Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
+              child: CircularProgressIndicator(
+                color: AppColors.primary,
+                strokeWidth: 3,
+              ),
             )
           : _metas.isEmpty
               ? _buildEmptyState()
@@ -115,21 +117,22 @@ class _MetasScreenState extends State<MetasScreen> {
                   itemCount: _metas.length,
                   itemBuilder: (context, index) {
                     final meta = _metas[index];
-                    return _buildMetaCard(meta);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildMetaCard(meta),
+                    );
                   },
                 ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
         onPressed: () {
-          // 🔥 AGORA USA O MODAL!
           NovaMetaModal.show(
             context: context,
-            onSalvo: () {
-              _carregarMetas();
-            },
+            onSalvo: () => _carregarMetas(),
           );
         },
+        tooltip: 'Nova meta',
       ),
     );
   }
@@ -169,17 +172,29 @@ class _MetasScreenState extends State<MetasScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          GradientButton(
-            text: 'CRIAR PRIMEIRA META',
-            icon: Icons.add,
+          ElevatedButton(
             onPressed: () {
               NovaMetaModal.show(
                 context: context,
-                onSalvo: () {
-                  _carregarMetas();
-                },
+                onSalvo: () => _carregarMetas(),
               );
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.add, size: 18),
+                SizedBox(width: 8),
+                Text('CRIAR PRIMEIRA META'),
+              ],
+            ),
           ),
         ],
       ),
@@ -217,237 +232,219 @@ class _MetasScreenState extends State<MetasScreen> {
       statusText = 'Próximo do fim';
     }
 
-    return GestureDetector(
-      onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DetalhesMetaScreen(meta: meta),
-          ),
-        );
-        if (result == true) {
-          _carregarMetas();
-        }
-      },
-      child: ModernCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: () async {
+          await DetalhesMetaModal.show(
+            context: context,
+            meta: meta,
+            onMetaAlterada: () => _carregarMetas(),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icone, color: cor, size: 24),
                   ),
-                  child: Icon(icone, color: cor, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          titulo,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary(context),
+                          ),
+                        ),
+                        if (descricao.isNotEmpty)
+                          Text(
+                            descricao,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary(context),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: statusColor.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          concluida
+                              ? Icons.check_circle
+                              : diasRestantes < 0
+                                  ? Icons.warning
+                                  : Icons.schedule,
+                          size: 12,
+                          color: statusColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Progresso',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary(context),
+                    ),
+                  ),
+                  Text(
+                    '${percentual.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: percentual >= 100 ? Colors.green : cor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progresso.clamp(0.0, 1.0),
+                  backgroundColor: Colors.grey[200],
+                  color: percentual >= 100 ? Colors.green : cor,
+                  minHeight: 8,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        titulo,
+                        'Atual',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary(context),
+                        ),
+                      ),
+                      Text(
+                        Formatador.moeda(valorAtual),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary(context),
                         ),
                       ),
-                      if (descricao.isNotEmpty)
-                        Text(
-                          descricao,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary(context),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
                     ],
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Meta',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary(context),
+                        ),
+                      ),
+                      Text(
+                        Formatador.moeda(valorObjetivo),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary(context),
+                        ),
+                      ),
+                    ],
                   ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: statusColor.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
                     children: [
                       Icon(
-                        concluida
-                            ? Icons.check_circle
-                            : diasRestantes < 0
-                                ? Icons.warning
-                                : Icons.schedule,
+                        Icons.calendar_today,
                         size: 12,
-                        color: statusColor,
+                        color: AppColors.textSecondary(context),
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        statusText,
+                        'Até ${Formatador.data(dataFim)}',
                         style: TextStyle(
-                          fontSize: 10,
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: AppColors.textSecondary(context),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Barra de progresso
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Progresso',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary(context),
-                  ),
-                ),
-                Text(
-                  '${percentual.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: percentual >= 100 ? Colors.green : cor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progresso.clamp(0.0, 1.0),
-                backgroundColor: Colors.grey[200],
-                color: percentual >= 100 ? Colors.green : cor,
-                minHeight: 8,
+                  if (!concluida && falta > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Faltam ${Formatador.moeda(falta)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Valores
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Atual',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary(context),
-                      ),
-                    ),
-                    AnimatedCounter(
-                      value: valorAtual,
-                      formatter: Formatador.moeda,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary(context),
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Meta',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary(context),
-                      ),
-                    ),
-                    Text(
-                      Formatador.moeda(valorObjetivo),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Data e falta
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: 12,
-                      color: AppColors.textSecondary(context),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Até ${Formatador.data(dataFim)}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary(context),
-                      ),
-                    ),
-                  ],
-                ),
-                if (!concluida && falta > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Faltam ',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        AnimatedCounter(
-                          value: falta,
-                          formatter: Formatador.moeda,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

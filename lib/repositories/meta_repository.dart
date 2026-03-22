@@ -1,7 +1,6 @@
 // lib/repositories/meta_repository.dart
 
 import '../database/db_helper.dart';
-import '../models/meta_model.dart';
 
 class MetaRepository {
   final DBHelper _dbHelper = DBHelper();
@@ -137,13 +136,7 @@ class MetaRepository {
   /// Remove um depósito e atualiza o progresso da meta
   Future<bool> removerDepositoEAtualizarMeta(int depositoId) async {
     try {
-      // 1. Buscar o depósito antes de deletar
-      // Nota: Precisamos de um método para buscar um depósito específico
-      // Como não temos, vamos precisar adaptar
-
-      // Por enquanto, vamos apenas deletar e depois recalcular
       await _dbHelper.deleteDeposito(depositoId);
-
       return true;
     } catch (e) {
       print('❌ Erro ao remover depósito: $e');
