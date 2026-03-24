@@ -1,19 +1,16 @@
-// lib/services/yahoo_finance_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import '../services/performance_service.dart';
+import 'logger_service.dart';
 
-// 🔥 CLASSE DE CACHE FORA DO SERVIÇO
 class CachePrice {
   final double price;
   final DateTime timestamp;
 
   CachePrice(this.price, this.timestamp);
 
-  // 🔥 AGORA USA _cacheDuration (warning resolvido!)
   bool get isValid =>
-      DateTime.now().difference(timestamp) < YahooFinanceService.cacheDuration;
+      DateTime.now().difference(timestamp) < const Duration(minutes: 5);
 }
 
 class YahooFinanceService {
@@ -21,29 +18,28 @@ class YahooFinanceService {
   factory YahooFinanceService() => _instance;
   YahooFinanceService._internal();
 
-  // 🔥 CACHE DE PREÇOS
   static final Map<String, CachePrice> _priceCache = {};
-
-  // 🔥 TORNAR PÚBLICO PARA ACESSO NA CLASSE CachePrice
-  static const Duration cacheDuration = Duration(minutes: 5); // sem underline
   static const int _maxRetries = 3;
-  static const Duration _timeout = Duration(seconds: 10);
+  static const Duration _timeout = Duration(seconds: 15);
 
-  // 🔥 MÉTODO PRINCIPAL COM CACHE E RETRY
   Future<double?> getPrecoAtual(String ticker) async {
     PerformanceService.start('yahoo_getPreco_$ticker');
 
-    // Verificar cache - USA cacheDuration indiretamente via CachePrice.isValid
-    if (_priceCache.containsKey(ticker) && _priceCache[ticker]!.isValid) {
+    final tickerLimpo = ticker.trim().toUpperCase().replaceAll('.SA', '');
+
+    LoggerService.info('🔍 Buscando preço para $tickerLimpo');
+
+    // Verificar cache
+    if (_priceCache.containsKey(tickerLimpo) &&
+        _priceCache[tickerLimpo]!.isValid) {
       PerformanceService.stop('yahoo_getPreco_$ticker (cache)');
-      return _priceCache[ticker]!.price;
+      return _priceCache[tickerLimpo]!.price;
     }
 
-    // ... resto do código igual
     for (int tentativa = 1; tentativa <= _maxRetries; tentativa++) {
       try {
         final url = Uri.parse(
-            'https://query1.finance.yahoo.com/v8/finance/chart/$ticker.SA');
+            'https://query1.finance.yahoo.com/v8/finance/chart/$tickerLimpo.SA');
 
         final response = await http.get(url).timeout(_timeout);
 
@@ -54,12 +50,27 @@ class YahooFinanceService {
               data['chart']['result'].isNotEmpty) {
             final result = data['chart']['result'][0];
             final meta = result['meta'];
-            final preco = meta['regularMarketPrice']?.toDouble();
+
+            double? preco = meta['regularMarketPrice']?.toDouble();
+
+            if (preco == null || preco <= 0) {
+              final indicators = result['indicators'];
+              if (indicators != null && indicators['quote'] != null) {
+                final quote = indicators['quote'][0];
+                if (quote['close'] != null && quote['close'].isNotEmpty) {
+                  preco = quote['close'].last?.toDouble();
+                }
+              }
+            }
+
+            if (preco == null || preco <= 0) {
+              preco = meta['previousClose']?.toDouble();
+            }
 
             if (preco != null && preco > 0) {
-              // Salvar no cache
-              _priceCache[ticker] = CachePrice(preco, DateTime.now());
-
+              _priceCache[tickerLimpo] = CachePrice(preco, DateTime.now());
+              LoggerService.success(
+                  '✅ $tickerLimpo: R\$ ${preco.toStringAsFixed(2)}');
               PerformanceService.stop('yahoo_getPreco_$ticker');
               return preco;
             }
@@ -67,40 +78,43 @@ class YahooFinanceService {
         }
 
         if (tentativa < _maxRetries) {
-          await Future.delayed(Duration(seconds: tentativa * 2));
+          await Future.delayed(Duration(seconds: tentativa));
         }
       } catch (e) {
-        debugPrint('⚠️ Tentativa $tentativa falhou para $ticker: $e');
-        if (tentativa == _maxRetries) {
-          debugPrint('❌ Todas as tentativas falharam para $ticker');
-        } else {
+        LoggerService.error(
+            'Erro na tentativa $tentativa para $tickerLimpo', e);
+        if (tentativa < _maxRetries) {
           await Future.delayed(Duration(seconds: tentativa));
         }
       }
     }
 
+    LoggerService.error('❌ Falha ao obter preço para $tickerLimpo');
     PerformanceService.stop('yahoo_getPreco_$ticker (falha)');
     return null;
   }
 
-  // 🔥 MÉTODO PARA LIMPAR CACHE
   void limparCache() {
+    final quantidade = _priceCache.length;
     _priceCache.clear();
+    LoggerService.info('🗑️ Cache limpo: $quantidade itens removidos');
   }
 
-  // 🔥 MÉTODO PARA REMOVER CACHE DE UM TICKER ESPECÍFICO
   void removerDoCache(String ticker) {
-    _priceCache.remove(ticker);
+    final tickerLimpo = ticker.trim().toUpperCase().replaceAll('.SA', '');
+    _priceCache.remove(tickerLimpo);
+    LoggerService.debug('🗑️ Cache removido para $tickerLimpo');
   }
 
-  // 🔥 MÉTODO PARA BUSCAR DADOS COMPLETOS
   Future<Map<String, dynamic>?> getDadosCompletos(String ticker) async {
     PerformanceService.start('yahoo_getCompleto_$ticker');
+    final tickerLimpo = ticker.trim().toUpperCase().replaceAll('.SA', '');
+
+    LoggerService.info('📊 Buscando dados completos para $tickerLimpo');
 
     try {
       final url = Uri.parse(
-          'https://query1.finance.yahoo.com/v8/finance/chart/$ticker.SA');
-
+          'https://query1.finance.yahoo.com/v8/finance/chart/$tickerLimpo.SA');
       final response = await http.get(url).timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -114,54 +128,50 @@ class YahooFinanceService {
           final quote = indicators['quote'][0];
 
           final precoAtual = meta['regularMarketPrice']?.toDouble();
-          final precoAbertura = quote['open']?.last?.toDouble();
-          final maximaDia = quote['high']?.last?.toDouble();
-          final minimaDia = quote['low']?.last?.toDouble();
-          final volume = quote['volume']?.last?.toInt();
-
-          double? variacao;
-          if (precoAbertura != null && precoAtual != null) {
-            variacao = ((precoAtual - precoAbertura) / precoAbertura) * 100;
-          }
+          final nome = meta['longName'] ?? meta['symbol'] ?? tickerLimpo;
 
           final dados = {
-            'nome': meta['longName'] ?? meta['symbol'],
+            'ticker': tickerLimpo,
+            'nome': nome,
             'precoAtual': precoAtual,
-            'precoAbertura': precoAbertura,
-            'maximaDia': maximaDia,
-            'minimaDia': minimaDia,
-            'volume': volume,
-            'variacao': variacao,
-            'variacaoPercentual': variacao,
+            'precoAbertura': quote['open']?.last?.toDouble(),
+            'maximaDia': quote['high']?.last?.toDouble(),
+            'minimaDia': quote['low']?.last?.toDouble(),
+            'volume': quote['volume']?.last?.toInt(),
           };
 
+          LoggerService.success('✅ Dados completos obtidos para $tickerLimpo');
           PerformanceService.stop('yahoo_getCompleto_$ticker');
           return dados;
         }
       }
     } catch (e) {
-      debugPrint('❌ Erro ao buscar dados completos de $ticker: $e');
+      LoggerService.error(
+          '❌ Erro ao buscar dados completos de $tickerLimpo', e);
     }
 
     PerformanceService.stop('yahoo_getCompleto_$ticker (falha)');
     return null;
   }
 
-  // 🔥 MÉTODO PARA BUSCAR DADOS HISTÓRICOS
   Future<List<Map<String, dynamic>>> getDadosHistoricos(
     String ticker, {
     int dias = 30,
   }) async {
     PerformanceService.start('yahoo_getHistorico_$ticker');
+    final tickerLimpo = ticker.trim().toUpperCase().replaceAll('.SA', '');
+
+    LoggerService.info(
+        '📈 Buscando dados históricos de $dias dias para $tickerLimpo');
 
     try {
-      final agora = DateTime.now();
-      final periodo = agora.subtract(Duration(days: dias));
+      final dataAtual = DateTime.now();
+      final dataInicio = dataAtual.subtract(Duration(days: dias));
 
       final url = Uri.parse(
-          'https://query1.finance.yahoo.com/v8/finance/chart/$ticker.SA?'
-          'period1=${periodo.millisecondsSinceEpoch ~/ 1000}&'
-          'period2=${agora.millisecondsSinceEpoch ~/ 1000}&'
+          'https://query1.finance.yahoo.com/v8/finance/chart/$tickerLimpo.SA?'
+          'period1=${dataInicio.millisecondsSinceEpoch ~/ 1000}&'
+          'period2=${dataAtual.millisecondsSinceEpoch ~/ 1000}&'
           'interval=1d');
 
       final response = await http.get(url).timeout(_timeout);
@@ -173,68 +183,66 @@ class YahooFinanceService {
             data['chart']['result'].isNotEmpty) {
           final result = data['chart']['result'][0];
           final timestamps = result['timestamp'] as List;
-          final indicators = result['indicators'];
-          final quote = indicators['quote'][0];
+          final quote = result['indicators']['quote'][0];
 
           final List<Map<String, dynamic>> historico = [];
 
           for (int i = 0; i < timestamps.length; i++) {
-            final data =
-                DateTime.fromMillisecondsSinceEpoch(timestamps[i] * 1000);
             final preco = quote['close']?[i]?.toDouble();
-            final abertura = quote['open']?[i]?.toDouble();
-            final maxima = quote['high']?[i]?.toDouble();
-            final minima = quote['low']?[i]?.toDouble();
-            final volume = quote['volume']?[i]?.toInt();
-
             if (preco != null && preco > 0) {
               historico.add({
-                'data': data,
+                'data':
+                    DateTime.fromMillisecondsSinceEpoch(timestamps[i] * 1000),
                 'preco': preco,
-                'abertura': abertura,
-                'maxima': maxima,
-                'minima': minima,
-                'volume': volume,
               });
             }
           }
 
+          LoggerService.success(
+              '✅ ${historico.length} pontos históricos obtidos');
           PerformanceService.stop('yahoo_getHistorico_$ticker');
           return historico;
         }
       }
     } catch (e) {
-      debugPrint('❌ Erro ao buscar dados históricos de $ticker: $e');
+      LoggerService.error(
+          '❌ Erro ao buscar dados históricos de $tickerLimpo', e);
     }
 
+    LoggerService.warning('⚠️ Nenhum dado histórico obtido');
     PerformanceService.stop('yahoo_getHistorico_$ticker (falha)');
     return [];
   }
 
-  // 🔥 MÉTODO PARA MÚLTIPLOS TICKERS DE UMA VEZ
   Future<Map<String, double?>> getPrecosEmLote(List<String> tickers) async {
     PerformanceService.start('yahoo_getLote');
 
     final Map<String, double?> resultados = {};
 
-    // Primeiro, verificar cache
-    final tickersParaBuscar = <String>[];
-
     for (var ticker in tickers) {
-      if (_priceCache.containsKey(ticker) && _priceCache[ticker]!.isValid) {
-        resultados[ticker] = _priceCache[ticker]!.price;
-      } else {
-        tickersParaBuscar.add(ticker);
-      }
-    }
-
-    // Buscar os que não estão no cache
-    for (var ticker in tickersParaBuscar) {
       final preco = await getPrecoAtual(ticker);
       resultados[ticker] = preco;
     }
 
     PerformanceService.stop('yahoo_getLote');
     return resultados;
+  }
+
+  Future<bool> verificarSaude() async {
+    try {
+      final result = await getPrecoAtual('PETR4');
+      return result != null && result > 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Map<String, dynamic> getEstatisticasCache() {
+    final ativos = _priceCache.values.where((e) => e.isValid).length;
+    return {
+      'totalItens': _priceCache.length,
+      'itensAtivos': ativos,
+      'itensExpirados': _priceCache.length - ativos,
+    };
   }
 }

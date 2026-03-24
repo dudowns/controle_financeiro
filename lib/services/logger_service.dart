@@ -1,42 +1,44 @@
 import 'package:flutter/foundation.dart';
 
 class LoggerService {
+  static bool get _isDebug => kDebugMode;
+
   static void info(String message) {
-    if (kDebugMode) {
-      debugPrint('📘 INFO: $message');
-    }
+    if (_isDebug) print('ℹ️ INFO: $message');
   }
 
   static void success(String message) {
-    if (kDebugMode) {
-      debugPrint('✅ SUCCESS: $message');
-    }
+    if (_isDebug) print('✅ SUCCESS: $message');
   }
 
   static void warning(String message) {
-    if (kDebugMode) {
-      debugPrint('⚠️ WARNING: $message');
-    }
+    if (_isDebug) print('⚠️ WARNING: $message');
   }
 
   static void error(String message, [dynamic error]) {
-    if (kDebugMode) {
-      debugPrint('❌ ERROR: $message');
+    if (_isDebug) {
       if (error != null) {
-        debugPrint('   Details: $error');
+        print('❌ ERROR: $message - $error');
+      } else {
+        print('❌ ERROR: $message');
       }
     }
   }
 
-  static void database(String message) {
-    if (kDebugMode) {
-      debugPrint('💾 DB: $message');
+  static void debug(String message) {
+    if (_isDebug) print('🐛 DEBUG: $message');
+  }
+
+  static void database(String operation, {String? table, int? rowsAffected}) {
+    if (_isDebug) {
+      print(
+          '🗄️ DB: $operation${table != null ? ' | Tabela: $table' : ''}${rowsAffected != null ? ' | Linhas: $rowsAffected' : ''}');
     }
   }
 
-  static void network(String message) {
-    if (kDebugMode) {
-      debugPrint('🌐 NETWORK: $message');
+  static void performance(String operation, Duration duration) {
+    if (_isDebug) {
+      print('⚡ PERFORMANCE: $operation levou ${duration.inMilliseconds}ms');
     }
   }
 }

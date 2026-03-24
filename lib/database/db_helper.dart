@@ -1,5 +1,3 @@
-// lib/database/db_helper.dart
-
 import 'dart:math';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -7,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import '../services/performance_service.dart';
 import '../utils/date_helper.dart';
+import '../services/logger_service.dart';
 
 // ========== ENUM PARA STATUS DE PAGAMENTO ==========
 enum StatusPagamento {
@@ -73,11 +72,11 @@ class DBHelper {
     final appDir = await getApplicationSupportDirectory();
     final path = join(appDir.path, 'financeiro.db');
 
-    debugPrint('📁 Banco de dados em: $path');
+    LoggerService.info('📁 Banco de dados em: $path');
 
     return await openDatabase(
       path,
-      version: 22,
+      version: 23,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -87,7 +86,7 @@ class DBHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    debugPrint('🔨 Criando tabelas versão $version');
+    LoggerService.info('🔨 Criando tabelas versão $version');
 
     // Tabela de lançamentos
     await db.execute('''
@@ -260,8 +259,19 @@ class DBHelper {
       )
     ''');
 
+    // Tabela de logs de integridade
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS integridade_logs(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo TEXT NOT NULL,
+        mensagem TEXT NOT NULL,
+        detalhes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+
     await _criarIndices(db);
-    debugPrint('✅ Tabelas criadas com sucesso!');
+    LoggerService.success('✅ Tabelas criadas com sucesso!');
   }
 
   Future<void> _criarIndices(Database db) async {
@@ -352,16 +362,16 @@ class DBHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    debugPrint('🔄 Atualizando banco: $oldVersion -> $newVersion');
+    LoggerService.info('🔄 Atualizando banco: $oldVersion -> $newVersion');
 
     if (oldVersion < 17) {
-      debugPrint('🔧 Recriando tabela proventos...');
+      LoggerService.info('🔧 Recriando tabela proventos...');
 
       List<Map<String, dynamic>> proventosExistentes = [];
       try {
         proventosExistentes = await db.query('proventos');
       } catch (e) {
-        debugPrint('⚠️ Erro ao fazer backup: $e');
+        LoggerService.warning('⚠️ Erro ao fazer backup: $e');
       }
 
       await db.execute('DROP TABLE IF EXISTS proventos');
@@ -388,7 +398,7 @@ class DBHelper {
           p.remove('updated_at');
           await db.insert('proventos', p);
         } catch (e) {
-          debugPrint('❌ Erro ao restaurar provento: $e');
+          LoggerService.error('❌ Erro ao restaurar provento', e);
         }
       }
     }
@@ -465,7 +475,7 @@ class DBHelper {
     }
 
     if (oldVersion < 22) {
-      debugPrint('🔧 Criando novas tabelas de contas do mês...');
+      LoggerService.info('🔧 Criando novas tabelas de contas do mês...');
 
       await db.execute('''
         CREATE TABLE IF NOT EXISTS $tabelaContas(
@@ -502,6 +512,24 @@ class DBHelper {
       await _criarIndices(db);
     }
 
+    // Migração para versão 23
+    if (oldVersion < 23) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS integridade_logs(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            mensagem TEXT NOT NULL,
+            detalhes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        ''');
+        LoggerService.success('✅ Tabela integridade_logs criada');
+      } catch (e) {
+        LoggerService.error('❌ Erro ao criar integridade_logs', e);
+      }
+    }
+
     await _criarIndices(db);
   }
 
@@ -530,11 +558,12 @@ class DBHelper {
       final result = await db.insert(table, data);
 
       _clearTableCache(table);
+      LoggerService.info('Insert em $table');
 
       PerformanceService.stop('db_insert_$table');
       return result;
     } catch (e) {
-      debugPrint('❌ Erro ao inserir em $table: $e');
+      LoggerService.error('Erro ao inserir em $table', e);
       rethrow;
     }
   }
@@ -559,7 +588,7 @@ class DBHelper {
       PerformanceService.stop('db_update_$table');
       return result;
     } catch (e) {
-      debugPrint('❌ Erro ao atualizar $table: $e');
+      LoggerService.error('Erro ao atualizar $table', e);
       rethrow;
     }
   }
@@ -581,7 +610,7 @@ class DBHelper {
       PerformanceService.stop('db_delete_$table');
       return result;
     } catch (e) {
-      debugPrint('❌ Erro ao deletar em $table: $e');
+      LoggerService.error('Erro ao deletar em $table', e);
       rethrow;
     }
   }
@@ -678,7 +707,7 @@ class DBHelper {
       _clearTableCache(tabelaProventos);
       return id;
     } catch (e) {
-      debugPrint('❌ Erro ao inserir provento: $e');
+      LoggerService.error('Erro ao inserir provento', e);
       rethrow;
     }
   }
@@ -711,7 +740,7 @@ class DBHelper {
       _clearTableCache(tabelaProventos);
       return result;
     } catch (e) {
-      debugPrint('❌ Erro ao atualizar provento: $e');
+      LoggerService.error('Erro ao atualizar provento', e);
       rethrow;
     }
   }
@@ -866,7 +895,6 @@ class DBHelper {
     });
   }
 
-  // 🔥 FUNÇÃO CORRIGIDA - GERA PARCELAS POR 5 ANOS (60 meses)
   Future<void> _gerarPagamentosFuturos(
       Transaction txn, int contaId, Map<String, dynamic> conta) async {
     final dataInicio = DateTime.parse(conta['data_inicio'] as String);
@@ -877,7 +905,6 @@ class DBHelper {
     if (tipo == 'parcelada') {
       final parcelasTotal = conta['parcelas_total'] as int;
 
-      // Gera o número EXATO de parcelas
       for (int i = 0; i < parcelasTotal; i++) {
         final mesReferencia = DateTime(
           dataInicio.year,
@@ -886,24 +913,15 @@ class DBHelper {
         );
         final anoMes = mesReferencia.year * 100 + mesReferencia.month;
 
-        int status;
-        if (mesReferencia.isBefore(DateTime.now())) {
-          status = StatusPagamento.pendente.index;
-        } else {
-          status = StatusPagamento.pendente.index;
-        }
-
         await txn.insert(tabelaPagamentos, {
           'conta_id': contaId,
           'ano_mes': anoMes,
           'valor': valor,
-          'status': status,
+          'status': StatusPagamento.pendente.index,
         });
       }
     } else {
-      // 🔥 mensal - AGORA gera por 5 ANOS (60 meses) em vez de 12!
       for (int i = 0; i < 60; i++) {
-        // 5 anos de parcelas
         final mesReferencia = DateTime(
           dataInicio.year,
           dataInicio.month + i,
@@ -937,9 +955,9 @@ class DBHelper {
       WHERE p.ano_mes = ?
       ORDER BY 
         CASE 
-          WHEN p.status = 0 THEN 1  -- pendente primeiro
-          WHEN p.status = 2 THEN 2  -- atrasado depois
-          ELSE 3                     -- pago por último
+          WHEN p.status = 0 THEN 1
+          WHEN p.status = 2 THEN 2
+          ELSE 3
         END,
         c.dia_vencimento ASC
     ''', [anoMes]);
@@ -1134,7 +1152,7 @@ class DBHelper {
 
       evolucao.sort((a, b) => a['data'].compareTo(b['data']));
     } catch (e) {
-      debugPrint('❌ Erro ao calcular evolução diária: $e');
+      LoggerService.error('Erro ao calcular evolução diária', e);
     }
 
     return evolucao;
@@ -1159,7 +1177,7 @@ class DBHelper {
 
       return valorAtual;
     } catch (e) {
-      debugPrint('❌ Erro ao calcular valor em data: $e');
+      LoggerService.error('Erro ao calcular valor em data', e);
       return (item['valor'] as num?)?.toDouble() ?? 0;
     }
   }
@@ -1417,5 +1435,120 @@ class DBHelper {
 
     _clearTableCache(tabelaMetas);
     return result;
+  }
+
+  // ========== 🔥 NOVOS MÉTODOS DE INTEGRIDADE ==========
+
+  Future<Map<String, dynamic>> validarIntegridade() async {
+    final db = await database;
+    final resultados = <String, dynamic>{
+      'valido': true,
+      'erros': <String>[],
+      'tabelas': <String, int>{},
+    };
+
+    try {
+      final tabelas = [
+        tabelaLancamentos,
+        tabelaMetas,
+        tabelaDepositosMeta,
+        tabelaInvestimentos,
+        tabelaProventos,
+        tabelaRendaFixa,
+        tabelaContas,
+        tabelaPagamentos,
+      ];
+
+      for (final tabela in tabelas) {
+        try {
+          final result =
+              await db.rawQuery('SELECT COUNT(*) as total FROM $tabela');
+          final count = (result.first['total'] as int?) ?? 0;
+          resultados['tabelas'][tabela] = count;
+        } catch (e) {
+          resultados['valido'] = false;
+          resultados['erros'].add('Erro na tabela $tabela: $e');
+          await _logIntegridade(
+              'erro', 'Falha na tabela $tabela', e.toString());
+        }
+      }
+
+      final fkErrors = await db.rawQuery('''
+        SELECT 
+          (SELECT COUNT(*) FROM $tabelaDepositosMeta dm 
+           LEFT JOIN $tabelaMetas m ON dm.meta_id = m.id 
+           WHERE m.id IS NULL) as depositos_orfãos,
+          (SELECT COUNT(*) FROM $tabelaPagamentos p 
+           LEFT JOIN $tabelaContas c ON p.conta_id = c.id 
+           WHERE c.id IS NULL) as pagamentos_orfãos
+      ''');
+
+      if (fkErrors.isNotEmpty) {
+        if ((fkErrors.first['depositos_orfãos'] as int) > 0) {
+          resultados['valido'] = false;
+          resultados['erros'].add('Depósitos sem meta associada');
+        }
+        if ((fkErrors.first['pagamentos_orfãos'] as int) > 0) {
+          resultados['valido'] = false;
+          resultados['erros'].add('Pagamentos sem conta associada');
+        }
+      }
+
+      LoggerService.info('✅ Validação de integridade concluída');
+    } catch (e) {
+      LoggerService.error('Erro na validação de integridade', e);
+      resultados['valido'] = false;
+      resultados['erros'].add('Erro geral: $e');
+    }
+
+    return resultados;
+  }
+
+  Future<void> _logIntegridade(
+      String tipo, String mensagem, String? detalhes) async {
+    try {
+      final db = await database;
+      await db.insert('integridade_logs', {
+        'tipo': tipo,
+        'mensagem': mensagem,
+        'detalhes': detalhes,
+      });
+    } catch (e) {
+      // Não faz nada se não conseguir logar
+    }
+  }
+
+  Future<Map<String, dynamic>> repararIntegridade() async {
+    final db = await database;
+    final reparos = <String, dynamic>{'removidos': 0, 'corrigidos': 0};
+
+    try {
+      await db.transaction((txn) async {
+        final removidosDepositos = await txn.rawDelete('''
+          DELETE FROM $tabelaDepositosMeta 
+          WHERE meta_id NOT IN (SELECT id FROM $tabelaMetas)
+        ''');
+        reparos['removidos'] =
+            (reparos['removidos'] as int) + removidosDepositos;
+
+        final removidosPagamentos = await txn.rawDelete('''
+          DELETE FROM $tabelaPagamentos 
+          WHERE conta_id NOT IN (SELECT id FROM $tabelaContas)
+        ''');
+        reparos['removidos'] =
+            (reparos['removidos'] as int) + removidosPagamentos;
+
+        await _logIntegridade(
+            'reparo', 'Reparo concluído', 'Removidos: ${reparos['removidos']}');
+      });
+
+      LoggerService.success(
+          '✅ Reparo concluído: ${reparos['removidos']} registros removidos');
+    } catch (e) {
+      LoggerService.error('Erro no reparo de integridade', e);
+      reparos['erro'] = e.toString();
+    }
+
+    return reparos;
   }
 }
